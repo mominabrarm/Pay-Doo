@@ -8,6 +8,7 @@ from app.models.customer import Customer
 from app.models.plan import SubscriptionPlan
 from app.models.product import Product
 from app.models.subscription import Subscription, SubscriptionLine
+from app.models.user import User
 from app.schemas.subscription import (
     SubscriptionCreate,
     SubscriptionResponse,
@@ -15,6 +16,7 @@ from app.schemas.subscription import (
 )
 from app.schemas.invoice import InvoiceGenerateRequest, InvoiceResponse
 from app.services.billing import generate_subscription_invoice, round_currency
+from app.services.auth import get_optional_current_user
 
 router = APIRouter(prefix="/subscriptions", tags=["Subscriptions"])
 
@@ -29,7 +31,17 @@ VALID_TRANSITIONS = {
 
 
 @router.post("", response_model=SubscriptionResponse, status_code=status.HTTP_201_CREATED)
-def create_subscription(payload: SubscriptionCreate, db: Session = Depends(get_db)):
+def create_subscription(
+    payload: SubscriptionCreate,
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    if current_user and current_user.role == "customer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: Customers cannot create subscriptions directly.",
+        )
+
     customer = db.query(Customer).filter(Customer.id == payload.customer_id, Customer.is_active == True).first()
     if not customer:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Active customer not found.")
@@ -91,21 +103,39 @@ def list_subscriptions(
     status_filter: Optional[str] = Query(None, alias="status"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
+    current_user: Optional[User] = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ):
     query = db.query(Subscription)
-    if customer_id:
+
+    # Scoped to authenticated customer
+    if current_user and current_user.role == "customer":
+        query = query.filter(Subscription.customer_id == current_user.customer_id)
+    elif customer_id:
         query = query.filter(Subscription.customer_id == customer_id)
+
     if status_filter:
         query = query.filter(Subscription.status == status_filter)
     return query.order_by(Subscription.id.desc()).offset(skip).limit(limit).all()
 
 
 @router.get("/{subscription_id}", response_model=SubscriptionResponse)
-def get_subscription(subscription_id: int, db: Session = Depends(get_db)):
+def get_subscription(
+    subscription_id: int,
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
     sub = db.query(Subscription).filter(Subscription.id == subscription_id).first()
     if not sub:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found.")
+
+    if current_user and current_user.role == "customer":
+        if not current_user.customer_id or current_user.customer_id != sub.customer_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Customers may only view their own subscriptions.",
+            )
+
     return sub
 
 
@@ -113,11 +143,19 @@ def get_subscription(subscription_id: int, db: Session = Depends(get_db)):
 def update_subscription_status(
     subscription_id: int,
     payload: SubscriptionStatusUpdate,
+    current_user: Optional[User] = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ):
     sub = db.query(Subscription).filter(Subscription.id == subscription_id).first()
     if not sub:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found.")
+
+    if current_user and current_user.role == "customer":
+        if not current_user.customer_id or current_user.customer_id != sub.customer_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Customers may only modify their own subscriptions.",
+            )
 
     current_status = sub.status
     target_status = payload.status
@@ -148,8 +186,15 @@ def update_subscription_status(
 def generate_invoice(
     subscription_id: int,
     payload: InvoiceGenerateRequest,
+    current_user: Optional[User] = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ):
+    if current_user and current_user.role == "customer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: Customers cannot generate invoices manually.",
+        )
+
     return generate_subscription_invoice(
         db=db,
         subscription_id=subscription_id,

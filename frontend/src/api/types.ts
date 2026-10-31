@@ -149,6 +149,38 @@ export interface DashboardSummary {
   recent_activity: Array<Record<string, unknown>>;
 }
 
+export interface CustomerInvoiceItem {
+  id: number;
+  invoice_number: string;
+  issue_date: string;
+  due_date: string;
+  status: InvoiceStatus;
+  total_amount: Money;
+  amount_paid: Money;
+  outstanding_balance: Money;
+}
+
+export interface CustomerPaymentItem {
+  id: number;
+  payment_number: string;
+  invoice_id: number;
+  amount: Money;
+  payment_method: PaymentMethod;
+  payment_date: string;
+}
+
+export interface CustomerDashboardSummary {
+  customer_id: number;
+  customer_name: string;
+  active_subscriptions_count: number;
+  total_paid: Money;
+  outstanding_balance: Money;
+  invoices_count: number;
+  next_billing_date: string | null;
+  recent_invoices: CustomerInvoiceItem[];
+  recent_payments: CustomerPaymentItem[];
+}
+
 export interface CustomerInput {
   name: string;
   email: string;

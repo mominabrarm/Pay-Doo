@@ -2,23 +2,36 @@ import { useState, useEffect } from "react";
 import { NavLink, Outlet, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { getAuthToken, getStoredUser, clearAuthSession } from "../api/client";
 import { api } from "../api/paydoo";
-import type { AuthUser } from "../api/types";
+import type { AuthUser, UserRole } from "../api/types";
 
 interface NavItem {
   path: string;
   label: string;
-  roles?: Array<"admin" | "staff" | "customer">;
 }
 
-const allNavItems: NavItem[] = [
-  { path: "/dashboard", label: "Dashboard" },
-  { path: "/customers", label: "Customers", roles: ["admin", "staff"] },
-  { path: "/products", label: "Products", roles: ["admin"] },
-  { path: "/plans", label: "Plans", roles: ["admin"] },
-  { path: "/subscriptions", label: "Subscriptions" },
-  { path: "/invoices", label: "Invoices" },
-  { path: "/payments", label: "Payments", roles: ["admin", "staff"] },
-];
+const navItemsByRole: Record<UserRole, NavItem[]> = {
+  admin: [
+    { path: "/dashboard", label: "Dashboard" },
+    { path: "/customers", label: "Customers" },
+    { path: "/products", label: "Products" },
+    { path: "/plans", label: "Plans" },
+    { path: "/subscriptions", label: "Subscriptions" },
+    { path: "/invoices", label: "Invoices" },
+    { path: "/payments", label: "Payments" },
+  ],
+  staff: [
+    { path: "/dashboard", label: "Dashboard" },
+    { path: "/customers", label: "Customers" },
+    { path: "/subscriptions", label: "Subscriptions" },
+    { path: "/invoices", label: "Invoices" },
+    { path: "/payments", label: "Payments" },
+  ],
+  customer: [
+    { path: "/dashboard", label: "My Portal" },
+    { path: "/subscriptions", label: "My Subscriptions" },
+    { path: "/invoices", label: "My Invoices" },
+  ],
+};
 
 export function AppShell() {
   const location = useLocation();
@@ -31,7 +44,6 @@ export function AppShell() {
       api.getMe()
         .then((user) => setCurrentUser(user))
         .catch(() => {
-          // If token expired, clear and force login
           clearAuthSession();
           navigate("/login", { replace: true, state: { from: location } });
         });
@@ -42,8 +54,8 @@ export function AppShell() {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  const userRole = currentUser?.role ?? "admin";
-  const visibleNav = allNavItems.filter((item) => !item.roles || item.roles.includes(userRole));
+  const userRole: UserRole = currentUser?.role ?? "customer";
+  const visibleNav = navItemsByRole[userRole] || navItemsByRole.customer;
 
   const handleLogout = async () => {
     try {
@@ -87,7 +99,7 @@ export function AppShell() {
                 className={`badge badge-${currentUser?.role === "admin" ? "confirmed" : currentUser?.role === "staff" ? "paused" : "active"}`}
                 style={{ textTransform: "capitalize", fontSize: "10px", padding: "2px 6px" }}
               >
-                {currentUser?.role ?? "admin"}
+                {currentUser?.role ?? "customer"}
               </span>
             </div>
             <div style={{ color: "#94a3b8", fontSize: "11px", wordBreak: "break-all" }}>

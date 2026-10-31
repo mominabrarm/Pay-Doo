@@ -12,7 +12,12 @@ from app.schemas.payment import PaymentCreate, PaymentResponse
 from app.services.billing import generate_subscription_invoice
 from app.services.payment import record_invoice_payment
 from app.services.pdf import generate_invoice_pdf
-from app.services.auth import get_current_user, security_bearer, decode_access_token
+from app.services.auth import (
+    get_current_user,
+    get_optional_current_user,
+    security_bearer,
+    decode_access_token,
+)
 
 router = APIRouter(prefix="/invoices", tags=["Invoices"])
 
@@ -24,11 +29,17 @@ def list_invoices(
     is_overdue: Optional[bool] = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
+    current_user: Optional[User] = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ):
     query = db.query(Invoice)
-    if customer_id:
+
+    # Enforce customer-level isolation
+    if current_user and current_user.role == "customer":
+        query = query.filter(Invoice.customer_id == current_user.customer_id)
+    elif customer_id:
         query = query.filter(Invoice.customer_id == customer_id)
+
     if status_filter:
         query = query.filter(Invoice.status == status_filter)
     if is_overdue is True:
@@ -45,10 +56,23 @@ def list_invoices(
 
 
 @router.get("/{invoice_id}", response_model=InvoiceResponse)
-def get_invoice(invoice_id: int, db: Session = Depends(get_db)):
+def get_invoice(
+    invoice_id: int,
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
     invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
     if not invoice:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found.")
+
+    # Enforce customer ownership check
+    if current_user and current_user.role == "customer":
+        if not current_user.customer_id or current_user.customer_id != invoice.customer_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Customers may only view their own invoices.",
+            )
+
     return invoice
 
 
@@ -104,8 +128,20 @@ def download_invoice_pdf(
 def add_payment(
     invoice_id: int,
     payload: PaymentCreate,
+    current_user: Optional[User] = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ):
+    # If authenticated as customer, verify invoice belongs to customer
+    if current_user and current_user.role == "customer":
+        inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+        if not inv:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found.")
+        if not current_user.customer_id or current_user.customer_id != inv.customer_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Customers may only pay their own invoices.",
+            )
+
     payment = record_invoice_payment(
         db=db,
         invoice_id=invoice_id,
@@ -133,8 +169,15 @@ def add_payment(
 @router.post("/run-billing-cycle", status_code=status.HTTP_200_OK)
 def run_automated_billing_cycle(
     target_date: Optional[date] = None,
+    current_user: Optional[User] = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ):
+    if current_user and current_user.role == "customer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: Customers are not permitted to trigger billing cycles.",
+        )
+
     run_date = target_date or date.today()
     due_subscriptions = (
         db.query(Subscription)

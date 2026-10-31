@@ -2,6 +2,7 @@ import { request } from "./client";
 import type {
   AuthUser,
   Customer,
+  CustomerDashboardSummary,
   CustomerInput,
   DashboardSummary,
   Invoice,
@@ -32,6 +33,8 @@ export const api = {
 
   // Core entities
   getDashboard: () => request<DashboardSummary>("/dashboard/summary"),
+  getCustomerDashboard: (customerId?: number) =>
+    request<CustomerDashboardSummary>(`/dashboard/customer-summary${customerId ? `?customer_id=${customerId}` : ""}`),
   listCustomers: (search?: string) => request<Customer[]>(`/customers?limit=50${search ? `&search=${encodeURIComponent(search)}` : ""}`),
   createCustomer: (input: CustomerInput) => request<Customer>("/customers", body(input)),
   listProducts: () => request<Product[]>("/products"),
