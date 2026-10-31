@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { motion, useReducedMotion } from "framer-motion";
 import { api } from "../api/paydoo";
 import { getStoredUser } from "../api/client";
 import type {
@@ -117,6 +118,7 @@ export function DashboardPage() {
 }
 
 function CustomerDashboardContent({ summary }: { summary: CustomerDashboardSummary }) {
+  const shouldReduceMotion = useReducedMotion();
   const [explainingInvoiceId, setExplainingInvoiceId] = useState<number | null>(null);
 
   return (
@@ -190,8 +192,14 @@ function CustomerDashboardContent({ summary }: { summary: CustomerDashboardSumma
                   </tr>
                 </thead>
                 <tbody>
-                  {summary.recent_invoices.map((inv) => (
-                    <tr key={inv.id}>
+                  {summary.recent_invoices.map((inv, index) => (
+                    <motion.tr
+                      key={inv.id}
+                      initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.35, delay: index * 0.05 }}
+                    >
                       <td>
                         <strong>{inv.invoice_number}</strong>
                       </td>
@@ -222,7 +230,7 @@ function CustomerDashboardContent({ summary }: { summary: CustomerDashboardSumma
                           </a>
                         </div>
                       </td>
-                    </tr>
+                    </motion.tr>
                   ))}
                 </tbody>
               </table>
@@ -244,8 +252,15 @@ function CustomerDashboardContent({ summary }: { summary: CustomerDashboardSumma
             />
           ) : (
             <div className="activity-list">
-              {summary.recent_payments.map((payment) => (
-                <div className="activity-row" key={payment.id}>
+              {summary.recent_payments.map((payment, index) => (
+                <motion.div
+                  className="activity-row"
+                  key={payment.id}
+                  initial={shouldReduceMotion ? false : { opacity: 0, x: -8 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.35, delay: index * 0.05 }}
+                >
                   <div>
                     <strong>{payment.payment_number}</strong>
                     <span>{titleCase(payment.payment_method.replace("_", " "))}</span>
@@ -254,7 +269,7 @@ function CustomerDashboardContent({ summary }: { summary: CustomerDashboardSumma
                     <strong>{formatCurrency(payment.amount)}</strong>
                     <span>{formatDate(payment.payment_date)}</span>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           )}
@@ -276,6 +291,12 @@ function AdminDashboardContent({
   summary: DashboardSummary;
   leakageSummary: LeakageSummary | null;
 }) {
+  const shouldReduceMotion = useReducedMotion();
+  const maxCadenceCount = Math.max(
+    ...Object.values(summary.subscriptions_by_interval).map(Number),
+    1
+  );
+
   return (
     <div className="page-stack">
       {/* Financial Intelligence Alert Strip */}
@@ -340,12 +361,46 @@ function AdminDashboardContent({
             {Object.entries(summary.subscriptions_by_interval).length === 0 ? (
               <span className="muted">No active subscriptions yet.</span>
             ) : (
-              Object.entries(summary.subscriptions_by_interval).map(([interval, count]) => (
-                <div key={interval}>
-                  <span>{titleCase(interval)}</span>
-                  <strong>{count}</strong>
-                </div>
-              ))
+              Object.entries(summary.subscriptions_by_interval).map(([interval, count], index) => {
+                const num = Number(count) || 0;
+                const pct = Math.min(Math.round((num / maxCadenceCount) * 100), 100);
+                return (
+                  <motion.div
+                    key={interval}
+                    initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.4, delay: index * 0.06 }}
+                    style={{ display: "flex", flexDirection: "column", gap: "6px" }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span>{titleCase(interval)}</span>
+                      <strong>{count}</strong>
+                    </div>
+                    <div
+                      style={{
+                        width: "100%",
+                        height: "5px",
+                        backgroundColor: "#edf2f7",
+                        borderRadius: "9999px",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <motion.div
+                        initial={shouldReduceMotion ? { width: `${pct}%` } : { width: 0 }}
+                        whileInView={{ width: `${pct}%` }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.7, delay: 0.15 + index * 0.08, ease: [0.16, 1, 0.3, 1] }}
+                        style={{
+                          height: "100%",
+                          backgroundColor: "#1B3D35",
+                          borderRadius: "9999px",
+                        }}
+                      />
+                    </div>
+                  </motion.div>
+                );
+              })
             )}
           </div>
         </Panel>
@@ -363,10 +418,17 @@ function AdminDashboardContent({
           ) : (
             <div className="activity-list">
               {summary.recent_activity.map((activity, index) => (
-                <ActivityRow
-                  activity={activity}
+                <motion.div
                   key={`${String(activity.reference)}-${index}`}
-                />
+                  initial={shouldReduceMotion ? false : { opacity: 0, x: -8 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.35, delay: index * 0.05 }}
+                >
+                  <ActivityRow
+                    activity={activity}
+                  />
+                </motion.div>
               ))}
             </div>
           )}

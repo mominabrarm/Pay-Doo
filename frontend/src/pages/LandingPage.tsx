@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { getAuthToken } from "../api/client";
+import { Logo } from "../components/Logo";
 
 export function LandingPage() {
   const isAuthenticated = Boolean(getAuthToken());
@@ -9,8 +10,7 @@ export function LandingPage() {
       <header className="landing-header">
         <div className="landing-container nav-container">
           <div className="brand">
-            <span className="brand-mark">P</span>
-            <span>Pay<span>Doo</span></span>
+            <Logo height={34} alt="PayDoo" />
           </div>
           <nav className="landing-nav">
             {isAuthenticated ? (

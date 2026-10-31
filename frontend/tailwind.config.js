@@ -8,6 +8,15 @@ export default {
   theme: {
     extend: {
       colors: {
+        forest: "#1B3D35",
+        "forest-hover": "#14302A",
+        teal: "#2F6F5E",
+        "teal-hover": "#24584B",
+        mint: "#E4EFE9",
+        "body-muted": "#6B7280",
+        "input-border": "#E5E7EB",
+        "error-red": "#EF4444",
+        "success-green": "#10B981",
         primary: "#022720",
         "primary-container": "#1b3d35",
         "on-primary": "#ffffff",

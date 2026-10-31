@@ -2,6 +2,7 @@ import { useState, useEffect, type FormEvent } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { api } from "../api/paydoo";
 import { setAuthSession, getAuthToken, ApiError } from "../api/client";
+import { Logo } from "../components/Logo";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -90,9 +91,8 @@ export function LoginPage() {
       <div className="auth-card">
         {/* Reserved space for future branding / logo redesign */}
         <div className="auth-brand-placeholder">
-          <Link to="/" className="brand">
-            <span className="brand-mark">P</span>
-            <span>Pay<span>Doo</span></span>
+          <Link to="/" className="brand" style={{ display: "inline-flex", justifyContent: "center", textDecoration: "none" }}>
+            <Logo height={36} alt="PayDoo" />
           </Link>
           <span className="auth-subtitle">
             {mode === "login" ? "Sign in to access your operations dashboard" : "Create a customer portal account"}

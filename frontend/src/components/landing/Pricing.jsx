@@ -1,6 +1,9 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { FadeIn, HoverLift } from "../ui/Animations";
+import { ShutterText } from "../motion/ShutterText";
+import { Reveal } from "../motion/Reveal";
+import { Stagger, StaggerItem } from "../motion/Stagger";
+import { RollingNumber } from "../motion/RollingNumber";
 
 export const PRICING_DATA = {
   eyebrow: "Predictable Investment",
@@ -74,24 +77,30 @@ export function Pricing() {
   return (
     <section id="pricing" className="max-w-7xl mx-auto px-6 lg:px-12 py-24 w-full">
       <div className="text-center max-w-2xl mx-auto mb-14">
-        <FadeIn delay={0.1}>
+        <Reveal>
           <span className="font-['Plus_Jakarta_Sans'] text-xs uppercase tracking-widest text-[#95482e] font-bold">
             {PRICING_DATA.eyebrow}
           </span>
-        </FadeIn>
-        <FadeIn delay={0.2}>
-          <h2 className="font-['Plus_Jakarta_Sans'] text-3xl md:text-4xl font-bold text-[#141b2b] mt-2 tracking-tight">
-            {PRICING_DATA.title}
-          </h2>
-        </FadeIn>
-        <FadeIn delay={0.3}>
+        </Reveal>
+
+        {/* Shutter heading */}
+        <div className="mt-2 flex justify-center">
+          <ShutterText
+            text={PRICING_DATA.title}
+            as="h2"
+            trigger="inView"
+            className="font-['Plus_Jakarta_Sans'] text-3xl md:text-4xl font-bold text-[#141b2b] tracking-tight text-center"
+          />
+        </div>
+
+        <Reveal delay={0.15}>
           <p className="font-['Plus_Jakarta_Sans'] text-base md:text-lg text-[#414846] mt-3 leading-relaxed">
             {PRICING_DATA.subtitle}
           </p>
-        </FadeIn>
+        </Reveal>
 
         {/* Billing Cycle Toggle */}
-        <FadeIn delay={0.4}>
+        <Reveal delay={0.25}>
           <div className="mt-8 inline-flex items-center p-1 bg-[#e9edff] rounded-full border border-[#dce2f7]">
             <button
               type="button"
@@ -119,104 +128,100 @@ export function Pricing() {
               </span>
             </button>
           </div>
-        </FadeIn>
+        </Reveal>
       </div>
 
-      {/* 3 Tier Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
-        {PRICING_DATA.tiers.map((tier, index) => {
+      {/* 3 Tier Cards Staggered */}
+      <Stagger className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
+        {PRICING_DATA.tiers.map((tier) => {
           const price = billingCycle === "annual" ? tier.annualPrice : tier.monthlyPrice;
           const period =
             tier.periodText || (billingCycle === "annual" ? "/mo (billed annually)" : "/month");
 
           return (
-            <FadeIn key={tier.id} delay={0.1 * index} className="h-full">
-              <HoverLift
-                y={tier.isPopular ? -10 : -6}
-                className={`bg-white p-8 rounded-2xl border flex flex-col justify-between h-full relative transition-all duration-300 ${
-                  tier.isPopular
-                    ? "border-[#1b3d35] shadow-xl ring-2 ring-[#1b3d35]/20 lg:-translate-y-2"
-                    : "border-[#e2e4de] shadow-sm hover:shadow-lg"
-                }`}
-              >
+            <StaggerItem
+              key={tier.id}
+              hoverLift={true}
+              className={`bg-white p-8 rounded-2xl border flex flex-col justify-between h-full relative transition-colors duration-150 ${
+                tier.isPopular
+                  ? "border-[#1b3d35] shadow-xl ring-2 ring-[#1b3d35]/20 lg:-translate-y-2"
+                  : "border-[#e2e4de] shadow-sm"
+              }`}
+            >
+              <div>
+                {/* Popular Pill */}
                 {tier.isPopular && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-[#1b3d35] text-white px-4 py-1 rounded-full font-['Plus_Jakarta_Sans'] text-xs font-bold tracking-wide uppercase shadow-sm">
+                  <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-[#1b3d35] text-[#c5eadf] text-[11px] font-['Plus_Jakarta_Sans'] font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">
                     {tier.popularLabel}
-                  </div>
+                  </span>
                 )}
 
-                <div>
-                  <span
-                    className={`font-['Plus_Jakarta_Sans'] text-xs font-bold uppercase tracking-wider ${
-                      tier.isPopular ? "text-[#1b3d35]" : "text-[#414846]"
-                    }`}
-                  >
-                    {tier.name}
-                  </span>
-                  <h3 className="font-['Plus_Jakarta_Sans'] text-lg font-bold text-[#141b2b] mt-1">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="font-['Plus_Jakarta_Sans'] text-xs font-bold uppercase tracking-wider text-[#95482e]">
                     {tier.badge}
-                  </h3>
-                  <p className="font-['Plus_Jakarta_Sans'] text-xs text-[#414846] mt-2 leading-relaxed">
-                    {tier.description}
-                  </p>
+                  </span>
+                </div>
 
-                  <div className="my-6">
-                    <span
-                      className={`font-['Plus_Jakarta_Sans'] text-3xl font-bold ${
-                        tier.isPopular ? "text-[#1b3d35]" : "text-[#141b2b]"
-                      }`}
-                    >
-                      {price}
-                    </span>
-                    {price !== "Custom" && (
-                      <span className="font-['Plus_Jakarta_Sans'] text-xs text-[#414846] ml-1">
-                        {period}
-                      </span>
+                <h3 className="font-['Plus_Jakarta_Sans'] text-2xl font-bold text-[#141b2b]">
+                  {tier.name}
+                </h3>
+                <p className="font-['Plus_Jakarta_Sans'] text-xs text-[#414846] mt-2 mb-6 min-h-[36px]">
+                  {tier.description}
+                </p>
+
+                {/* Price Display with RollingNumber */}
+                <div className="flex items-baseline gap-1 mb-8 pb-6 border-b border-[#f1f3ff]">
+                  <span className="font-['Plus_Jakarta_Sans'] text-4xl font-extrabold text-[#141b2b] tracking-tight">
+                    {price === "Custom" ? (
+                      price
+                    ) : (
+                      <RollingNumber value={price} />
                     )}
-                  </div>
+                  </span>
+                  <span className="font-['Plus_Jakarta_Sans'] text-xs text-[#717976]">
+                    {period}
+                  </span>
+                </div>
 
-                  <ul className="space-y-3 font-['Plus_Jakarta_Sans'] text-xs text-[#141b2b]">
-                    {tier.features.map((feat) => (
-                      <li
-                        key={feat.text}
-                        className={`flex items-center gap-2.5 ${
-                          !feat.included ? "text-[#414846]/50" : ""
+                {/* Features List */}
+                <ul className="space-y-3 mb-8">
+                  {tier.features.map((feat) => (
+                    <li
+                      key={feat.text}
+                      className="flex items-start gap-2.5 font-['Plus_Jakarta_Sans'] text-xs text-[#414846]"
+                    >
+                      <span
+                        className={`material-symbols-outlined text-base shrink-0 ${
+                          feat.included ? "text-[#1b3d35]" : "text-[#c1c8c4]"
                         }`}
                       >
-                        {feat.included ? (
-                          <span className="material-symbols-outlined text-base text-[#95482e] font-bold">
-                            check
-                          </span>
-                        ) : (
-                          <span className="material-symbols-outlined text-base text-[#414846]/40">
-                            close
-                          </span>
-                        )}
-                        <span className={feat.bold ? "font-bold text-[#141b2b]" : ""}>
-                          {feat.text}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                        {feat.included ? "check_circle" : "cancel"}
+                      </span>
+                      <span className={feat.bold ? "font-bold text-[#141b2b]" : ""}>
+                        {feat.text}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
 
-                <div className="pt-8 mt-8 border-t border-[#edf2f7]">
-                  <Link
-                    to={tier.ctaHref}
-                    className={`w-full inline-flex items-center justify-center py-3 rounded-lg font-['Plus_Jakarta_Sans'] text-xs font-semibold transition-all ${
-                      tier.isPopular
-                        ? "bg-[#1b3d35] text-white hover:bg-[#022720] shadow-md hover:shadow-lg active:scale-95"
-                        : "bg-[#e9edff] text-[#141b2b] hover:bg-[#dce2f7]"
-                    }`}
-                  >
-                    {tier.ctaLabel}
-                  </Link>
-                </div>
-              </HoverLift>
-            </FadeIn>
+              {/* Action CTA */}
+              <Link
+                to={tier.ctaHref}
+                className={`w-full py-3.5 px-4 rounded-lg font-['Plus_Jakarta_Sans'] text-xs font-bold text-center block transition-all shadow-sm ${
+                  tier.isPopular
+                    ? "bg-[#1b3d35] text-white hover:bg-[#022720] shadow-md"
+                    : "bg-[#e9edff] text-[#141b2b] hover:bg-[#dce2f7]"
+                }`}
+              >
+                {tier.ctaLabel}
+              </Link>
+            </StaggerItem>
           );
         })}
-      </div>
+      </Stagger>
     </section>
   );
 }
+
+export default Pricing;

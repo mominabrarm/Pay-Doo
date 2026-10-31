@@ -1,5 +1,7 @@
 import React from "react";
-import { FadeIn, HoverLift } from "../ui/Animations";
+import { ShutterText } from "../motion/ShutterText";
+import { Reveal } from "../motion/Reveal";
+import { Stagger, StaggerItem } from "../motion/Stagger";
 
 export const FEATURES_DATA = {
   eyebrow: "Capabilities Matrix",
@@ -68,65 +70,73 @@ export function Features() {
   return (
     <section id="features" className="max-w-7xl mx-auto px-6 lg:px-12 py-24 w-full">
       <div className="text-center max-w-2xl mx-auto mb-16">
-        <FadeIn delay={0.1}>
+        <Reveal>
           <span className="font-['Plus_Jakarta_Sans'] text-xs uppercase tracking-widest text-[#95482e] font-bold">
             {FEATURES_DATA.eyebrow}
           </span>
-        </FadeIn>
-        <FadeIn delay={0.2}>
-          <h2 className="font-['Plus_Jakarta_Sans'] text-3xl md:text-4xl font-bold text-[#141b2b] mt-2 tracking-tight">
-            {FEATURES_DATA.title}
-          </h2>
-        </FadeIn>
-        <FadeIn delay={0.3}>
+        </Reveal>
+        
+        {/* Shutter heading */}
+        <div className="mt-2 flex justify-center">
+          <ShutterText
+            text={FEATURES_DATA.title}
+            as="h2"
+            trigger="inView"
+            className="font-['Plus_Jakarta_Sans'] text-3xl md:text-4xl font-bold text-[#141b2b] tracking-tight text-center"
+          />
+        </div>
+
+        <Reveal delay={0.15}>
           <p className="font-['Plus_Jakarta_Sans'] text-base md:text-lg text-[#414846] mt-4 leading-relaxed">
             {FEATURES_DATA.subtitle}
           </p>
-        </FadeIn>
+        </Reveal>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {FEATURES_DATA.features.map((feat, index) => {
+      {/* Staggered card grid with 4px hover lift */}
+      <Stagger className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {FEATURES_DATA.features.map((feat) => {
           const isSecondary = feat.color === "secondary";
           return (
-            <FadeIn key={feat.id} delay={0.1 * index} className="h-full">
-              <HoverLift
-                y={-6}
-                className="bg-white p-8 rounded-2xl border border-[#e2e4de] shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between h-full group"
-              >
-                <div>
-                  <div
-                    className={`w-12 h-12 rounded-xl flex items-center justify-center mb-6 transition-colors ${
-                      isSecondary
-                        ? "bg-[#ffdbd0] text-[#95482e] group-hover:bg-[#95482e] group-hover:text-white"
-                        : "bg-[#e9edff] text-[#1b3d35] group-hover:bg-[#1b3d35] group-hover:text-white"
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-2xl">{feat.icon}</span>
-                  </div>
-                  <h3 className="font-['Plus_Jakarta_Sans'] text-lg font-bold text-[#141b2b] mb-2">
-                    {feat.title}
-                  </h3>
-                  <p className="font-['Plus_Jakarta_Sans'] text-sm text-[#414846] leading-relaxed">
-                    {feat.description}
-                  </p>
-                </div>
-
+            <StaggerItem
+              key={feat.id}
+              hoverLift={true}
+              className="bg-white p-8 rounded-2xl border border-[#e2e4de] shadow-sm flex flex-col justify-between h-full group transition-colors duration-150"
+            >
+              <div>
                 <div
-                  className={`pt-6 mt-6 border-t border-[#f1f3ff] flex items-center font-['Plus_Jakarta_Sans'] text-xs font-semibold ${
-                    isSecondary ? "text-[#95482e]" : "text-[#1b3d35]"
+                  className={`w-12 h-12 rounded-xl flex items-center justify-center mb-6 transition-colors ${
+                    isSecondary
+                      ? "bg-[#ffdbd0] text-[#95482e] group-hover:bg-[#95482e] group-hover:text-white"
+                      : "bg-[#e9edff] text-[#1b3d35] group-hover:bg-[#1b3d35] group-hover:text-white"
                   }`}
                 >
-                  <span>{feat.actionLabel}</span>
-                  <span className="material-symbols-outlined text-sm ml-1 group-hover:translate-x-1 transition-transform">
-                    arrow_forward
-                  </span>
+                  <span className="material-symbols-outlined text-2xl">{feat.icon}</span>
                 </div>
-              </HoverLift>
-            </FadeIn>
+                <h3 className="font-['Plus_Jakarta_Sans'] text-lg font-bold text-[#141b2b] mb-2">
+                  {feat.title}
+                </h3>
+                <p className="font-['Plus_Jakarta_Sans'] text-sm text-[#414846] leading-relaxed">
+                  {feat.description}
+                </p>
+              </div>
+
+              <div
+                className={`pt-6 mt-6 border-t border-[#f1f3ff] flex items-center font-['Plus_Jakarta_Sans'] text-xs font-semibold ${
+                  isSecondary ? "text-[#95482e]" : "text-[#1b3d35]"
+                }`}
+              >
+                <span>{feat.actionLabel}</span>
+                <span className="material-symbols-outlined text-sm ml-1 group-hover:translate-x-1 transition-transform">
+                  arrow_forward
+                </span>
+              </div>
+            </StaggerItem>
           );
         })}
-      </div>
+      </Stagger>
     </section>
   );
 }
+
+export default Features;

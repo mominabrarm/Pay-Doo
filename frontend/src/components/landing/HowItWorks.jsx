@@ -1,5 +1,7 @@
 import React from "react";
-import { FadeIn, HoverLift } from "../ui/Animations";
+import { ShutterText } from "../motion/ShutterText";
+import { Reveal } from "../motion/Reveal";
+import { Stagger, StaggerItem } from "../motion/Stagger";
 
 export const HOW_IT_WORKS_DATA = {
   eyebrow: "Linear Workflow",
@@ -51,57 +53,65 @@ export function HowItWorks() {
     <section id="how-it-works" className="w-full bg-[#f1f3ff] py-24 border-y border-[#e9edff]">
       <div className="max-w-7xl mx-auto px-6 lg:px-12">
         <div className="text-center max-w-2xl mx-auto mb-20">
-          <FadeIn delay={0.1}>
+          <Reveal>
             <span className="font-['Plus_Jakarta_Sans'] text-xs uppercase tracking-widest text-[#1b3d35] font-bold">
               {HOW_IT_WORKS_DATA.eyebrow}
             </span>
-          </FadeIn>
-          <FadeIn delay={0.2}>
-            <h2 className="font-['Plus_Jakarta_Sans'] text-3xl md:text-4xl font-bold text-[#141b2b] mt-2 tracking-tight">
-              {HOW_IT_WORKS_DATA.title}
-            </h2>
-          </FadeIn>
-          <FadeIn delay={0.3}>
+          </Reveal>
+          
+          {/* Shutter heading */}
+          <div className="mt-2 flex justify-center">
+            <ShutterText
+              text={HOW_IT_WORKS_DATA.title}
+              as="h2"
+              trigger="inView"
+              className="font-['Plus_Jakarta_Sans'] text-3xl md:text-4xl font-bold text-[#141b2b] tracking-tight text-center"
+            />
+          </div>
+
+          <Reveal delay={0.15}>
             <p className="font-['Plus_Jakarta_Sans'] text-base md:text-lg text-[#414846] mt-3 leading-relaxed">
               {HOW_IT_WORKS_DATA.subtitle}
             </p>
-          </FadeIn>
+          </Reveal>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-          {HOW_IT_WORKS_DATA.steps.map((item, index) => (
-            <FadeIn key={item.step} delay={0.1 * index} className="h-full">
-              <HoverLift
-                y={-4}
-                className="bg-white p-6 rounded-2xl border border-[#e2e4de] shadow-sm hover:shadow-lg transition-all flex flex-col h-full justify-between"
-              >
-                <div>
-                  <div
-                    className={`w-10 h-10 rounded-full ${item.badgeColor} flex items-center justify-center font-['Plus_Jakarta_Sans'] font-bold text-xs mb-6 shadow-sm`}
-                  >
-                    {item.step}
-                  </div>
-                  <h3 className="font-['Plus_Jakarta_Sans'] text-lg font-bold text-[#141b2b] mb-2">
-                    {item.title}
-                  </h3>
-                  <p className="font-['Plus_Jakarta_Sans'] text-xs sm:text-sm text-[#414846] leading-relaxed mb-6">
-                    {item.description}
-                  </p>
+        {/* Staggered steps grid with 4px hover lift */}
+        <Stagger className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          {HOW_IT_WORKS_DATA.steps.map((item) => (
+            <StaggerItem
+              key={item.step}
+              hoverLift={true}
+              className="bg-white p-6 rounded-2xl border border-[#e2e4de] shadow-sm flex flex-col h-full justify-between transition-colors duration-150"
+            >
+              <div>
+                <div
+                  className={`w-10 h-10 rounded-full ${item.badgeColor} flex items-center justify-center font-['Plus_Jakarta_Sans'] font-bold text-xs mb-6 shadow-sm`}
+                >
+                  {item.step}
                 </div>
+                <h3 className="font-['Plus_Jakarta_Sans'] text-lg font-bold text-[#141b2b] mb-2">
+                  {item.title}
+                </h3>
+                <p className="font-['Plus_Jakarta_Sans'] text-xs sm:text-sm text-[#414846] leading-relaxed mb-6">
+                  {item.description}
+                </p>
+              </div>
 
-                <div className="mt-auto bg-[#f1f3ff] px-3 py-2 rounded-lg flex items-center justify-between">
-                  <span className="font-['Plus_Jakarta_Sans'] text-xs font-semibold text-[#141b2b]">
-                    {item.tag}
-                  </span>
-                  <span className="material-symbols-outlined text-sm text-[#1b3d35]">
-                    {item.tagIcon}
-                  </span>
-                </div>
-              </HoverLift>
-            </FadeIn>
+              <div className="mt-auto bg-[#f1f3ff] px-3 py-2 rounded-lg flex items-center justify-between">
+                <span className="font-['Plus_Jakarta_Sans'] text-xs font-semibold text-[#141b2b]">
+                  {item.tag}
+                </span>
+                <span className="material-symbols-outlined text-sm text-[#1b3d35]">
+                  {item.tagIcon}
+                </span>
+              </div>
+            </StaggerItem>
           ))}
-        </div>
+        </Stagger>
       </div>
     </section>
   );
 }
+
+export default HowItWorks;

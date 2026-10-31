@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Menu, X } from "lucide-react";
+import { Logo } from "../Logo";
 
 export const NAVBAR_DATA = {
   brand: {
@@ -21,19 +22,30 @@ export const NAVBAR_DATA = {
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   const location = useLocation();
 
+  React.useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+    };
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   return (
-    <header className="fixed top-0 w-full z-50 bg-[#f9f9ff]/90 backdrop-blur-xl border-b border-[#e9edff]/80 transition-all">
+    <header
+      className={`fixed top-0 w-full z-50 transition-all duration-200 ${
+        isScrolled
+          ? "bg-[#f9f9ff]/90 backdrop-blur-xl border-b border-[#e9edff]/80 shadow-[0_4px_24px_rgba(27,61,53,0.08)]"
+          : "bg-[#f9f9ff]/50 backdrop-blur-sm border-b border-transparent"
+      }`}
+    >
       <div className="h-20 max-w-7xl mx-auto px-6 lg:px-12 flex items-center justify-between">
         {/* Brand */}
-        <Link to="/" className="flex items-center gap-3 group">
-          <div className="w-10 h-10 rounded-xl bg-[#1b3d35] flex items-center justify-center text-white font-bold text-lg shadow-sm group-hover:bg-[#022720] transition-colors">
-            <span className="material-symbols-outlined text-[22px]">account_balance_wallet</span>
-          </div>
-          <span className="font-['Plus_Jakarta_Sans'] text-2xl font-bold tracking-tight text-[#1b3d35]">
-            {NAVBAR_DATA.brand.name}
-          </span>
+        <Link to="/" className="flex items-center group transition-opacity hover:opacity-90">
+          <Logo height={34} alt="PayDoo" />
         </Link>
 
         {/* Desktop Nav Links */}

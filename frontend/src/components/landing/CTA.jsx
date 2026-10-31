@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { FadeIn } from "../ui/Animations";
+import { ShutterText } from "../motion/ShutterText";
+import { Reveal } from "../motion/Reveal";
 
 export const CTA_DATA = {
   badge: "Instant Deployment",
@@ -16,7 +17,7 @@ export const CTA_DATA = {
 export function CTA() {
   return (
     <section className="max-w-7xl mx-auto px-6 lg:px-12 py-16 w-full mb-12">
-      <FadeIn delay={0.1}>
+      <Reveal delay={0.1}>
         <div className="bg-[#1b3d35] text-white rounded-3xl p-10 md:p-16 relative overflow-hidden shadow-2xl flex flex-col items-center text-center">
           {/* Ambient Radiance Accents */}
           <div className="absolute -right-20 -bottom-20 w-80 h-80 rounded-full bg-[#022720] blur-3xl pointer-events-none opacity-60" />
@@ -27,10 +28,16 @@ export function CTA() {
             <span>{CTA_DATA.badge}</span>
           </div>
 
-          {/* Headline */}
-          <h2 className="font-['Plus_Jakarta_Sans'] text-3xl md:text-5xl font-bold text-white max-w-2xl leading-tight">
-            {CTA_DATA.title}
-          </h2>
+          {/* Shutter Headline */}
+          <div className="flex justify-center max-w-2xl">
+            <ShutterText
+              text={CTA_DATA.title}
+              as="h2"
+              trigger="inView"
+              shutterColor="#022720"
+              className="font-['Plus_Jakarta_Sans'] text-3xl md:text-5xl font-bold text-white max-w-2xl leading-tight text-center"
+            />
+          </div>
 
           {/* Subtitle */}
           <p className="font-['Plus_Jakarta_Sans'] text-sm md:text-base text-[#84a89d] max-w-xl mt-4 mb-8 leading-relaxed">
@@ -53,7 +60,9 @@ export function CTA() {
             </a>
           </div>
         </div>
-      </FadeIn>
+      </Reveal>
     </section>
   );
 }
+
+export default CTA;

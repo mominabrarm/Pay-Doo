@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { isValidEmailFormat } from "../../utils/validators";
 import { FadeIn } from "../../components/ui/Animations";
+import { Logo } from "../../components/Logo";
 
 export function ForgotPasswordPage() {
   const navigate = useNavigate();
@@ -27,6 +28,12 @@ export function ForgotPasswordPage() {
         <div className="bg-white rounded-2xl p-8 md:p-10 shadow-2xl border border-[#e2e4de] relative overflow-hidden">
           {/* Subtle top accent edge */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#ff9d7c] via-[#1b3d35] to-[#95482e]" />
+
+          <div className="mb-4 text-center">
+            <Link to="/" className="inline-flex transition-opacity hover:opacity-90">
+              <Logo height={32} alt="PayDoo" />
+            </Link>
+          </div>
 
           <div className="flex items-center justify-between pb-4">
             <span className="px-2.5 py-0.5 rounded-full bg-[#ffdbd0]/40 text-[#95482e] font-['Plus_Jakarta_Sans'] text-xs font-semibold uppercase tracking-wider">

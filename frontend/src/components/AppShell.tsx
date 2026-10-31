@@ -3,6 +3,7 @@ import { NavLink, Outlet, Navigate, useLocation, useNavigate } from "react-route
 import { getAuthToken, getStoredUser, setAuthSession, clearAuthSession } from "../api/client";
 import { api } from "../api/paydoo";
 import type { AuthUser, UserRole } from "../api/types";
+import { Logo } from "./Logo";
 
 interface NavItem {
   path: string;
@@ -80,9 +81,8 @@ export function AppShell() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <NavLink className="brand" to="/dashboard" aria-label="PayDoo dashboard">
-          <span className="brand-mark">P</span>
-          <span>Pay<span>Doo</span></span>
+        <NavLink className="brand" to="/dashboard" aria-label="PayDoo dashboard" style={{ textDecoration: "none" }}>
+          <Logo onDark height={26} alt="PayDoo" />
         </NavLink>
 
         <nav aria-label="Main navigation">

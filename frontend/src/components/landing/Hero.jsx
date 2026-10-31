@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { FadeIn } from "../ui/Animations";
+import { motion, useReducedMotion } from "framer-motion";
+import { ShutterText } from "../motion/ShutterText";
 
 export const HERO_DATA = {
   badge: {
@@ -21,6 +22,9 @@ export const HERO_DATA = {
 };
 
 export function Hero() {
+  const shouldReduceMotion = useReducedMotion();
+  const [headlineFinished, setHeadlineFinished] = useState(shouldReduceMotion ? true : false);
+
   return (
     <section className="relative w-full max-w-7xl mx-auto px-6 lg:px-12 py-20 md:py-32 flex flex-col items-center justify-center min-h-[560px] overflow-hidden">
       {/* Ambient Radial Gradients */}
@@ -29,64 +33,82 @@ export function Hero() {
 
       {/* Center Hero Content */}
       <div className="text-center max-w-3xl flex flex-col items-center z-10 my-auto">
+        
         {/* Pill Badge */}
-        <FadeIn delay={0.1} direction="down">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#e9edff] text-[#141b2b] font-['Plus_Jakarta_Sans'] text-xs font-semibold mb-8 shadow-sm">
-            <span
-              className="w-2 h-2 rounded-full"
-              style={{ backgroundColor: HERO_DATA.badge.dotColor }}
-            />
-            <span className="text-[#414846]">{HERO_DATA.badge.text}</span>
-          </div>
-        </FadeIn>
+        <motion.div
+          initial={{ opacity: 0, y: -16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#e9edff] text-[#141b2b] font-['Plus_Jakarta_Sans'] text-xs font-semibold mb-8 shadow-sm"
+        >
+          <span
+            className="w-2 h-2 rounded-full"
+            style={{ backgroundColor: HERO_DATA.badge.dotColor }}
+          />
+          <span className="text-[#414846]">{HERO_DATA.badge.text}</span>
+        </motion.div>
 
-        {/* Headline */}
-        <FadeIn delay={0.2} direction="up">
-          <h1 className="font-['Plus_Jakarta_Sans'] text-4xl sm:text-5xl md:text-[56px] md:leading-[64px] font-bold text-[#022720] tracking-tight text-center mb-6 max-w-2xl">
-            {HERO_DATA.headline}
-          </h1>
-        </FadeIn>
+        {/* Shutter Headline (plays on load, masks wipe upward in #1B3D35) */}
+        <ShutterText
+          text={HERO_DATA.headline}
+          as="h1"
+          trigger="load"
+          onComplete={() => setHeadlineFinished(true)}
+          shutterColor="#1B3D35"
+          className="font-['Plus_Jakarta_Sans'] text-4xl sm:text-5xl md:text-[56px] md:leading-[64px] font-bold text-[#022720] tracking-tight text-center mb-6 max-w-2xl"
+        />
 
-        {/* Subtitle */}
-        <FadeIn delay={0.3} direction="up">
-          <p className="font-['Plus_Jakarta_Sans'] text-base md:text-lg text-[#414846] max-w-xl mb-10 text-center leading-relaxed">
-            {HERO_DATA.subtitle}
-          </p>
-        </FadeIn>
+        {/* Subtitle - Fades in after headline finishes */}
+        <motion.p
+          initial={{ opacity: 0, y: 16 }}
+          animate={headlineFinished ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
+          transition={{ duration: 0.55, ease: "easeOut" }}
+          className="font-['Plus_Jakarta_Sans'] text-base md:text-lg text-[#414846] max-w-xl mb-10 text-center leading-relaxed"
+        >
+          {HERO_DATA.subtitle}
+        </motion.p>
 
-        {/* Action Buttons */}
-        <FadeIn delay={0.4} direction="up">
-          <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
-            <Link
-              to={HERO_DATA.cta.primary.href}
-              className="w-full sm:w-auto px-8 py-3.5 rounded-lg bg-[#1b3d35] text-white font-['Plus_Jakarta_Sans'] text-sm font-semibold hover:bg-[#022720] shadow-md hover:shadow-lg active:scale-95 transition-all text-center"
-            >
-              {HERO_DATA.cta.primary.label}
-            </Link>
-            <a
-              href={HERO_DATA.cta.secondary.href}
-              className="w-full sm:w-auto px-8 py-3.5 rounded-lg bg-white text-[#141b2b] border border-[#e1e8f0] font-['Plus_Jakarta_Sans'] text-sm font-semibold shadow-sm hover:bg-[#f1f3ff] transition-all flex items-center justify-center gap-2"
-            >
-              <span className="material-symbols-outlined text-base">play_circle</span>
-              {HERO_DATA.cta.secondary.label}
-            </a>
-          </div>
-        </FadeIn>
+        {/* Action Buttons - Fade in after headline finishes */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={headlineFinished ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
+          transition={{ duration: 0.55, delay: 0.1, ease: "easeOut" }}
+          className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto"
+        >
+          <Link
+            to={HERO_DATA.cta.primary.href}
+            className="w-full sm:w-auto px-8 py-3.5 rounded-lg bg-[#1b3d35] text-white font-['Plus_Jakarta_Sans'] text-sm font-semibold hover:bg-[#022720] shadow-md hover:shadow-lg active:scale-95 transition-all text-center"
+          >
+            {HERO_DATA.cta.primary.label}
+          </Link>
+          <a
+            href={HERO_DATA.cta.secondary.href}
+            className="w-full sm:w-auto px-8 py-3.5 rounded-lg bg-white text-[#141b2b] border border-[#e1e8f0] font-['Plus_Jakarta_Sans'] text-sm font-semibold shadow-sm hover:bg-[#f1f3ff] transition-all flex items-center justify-center gap-2"
+          >
+            <span className="material-symbols-outlined text-base">play_circle</span>
+            {HERO_DATA.cta.secondary.label}
+          </a>
+        </motion.div>
 
         {/* Micro reassurance */}
-        <FadeIn delay={0.5} direction="up">
-          <div className="mt-8 flex flex-wrap justify-center items-center gap-6 text-[#414846] font-['Plus_Jakarta_Sans'] text-xs">
-            {HERO_DATA.microReassurances.map((item) => (
-              <span key={item.text} className="flex items-center gap-1.5 font-medium">
-                <span className="material-symbols-outlined text-base text-[#022720]">
-                  {item.icon}
-                </span>
-                {item.text}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={headlineFinished ? { opacity: 1 } : { opacity: 0 }}
+          transition={{ duration: 0.55, delay: 0.2 }}
+          className="mt-8 flex flex-wrap justify-center items-center gap-6 text-[#414846] font-['Plus_Jakarta_Sans'] text-xs"
+        >
+          {HERO_DATA.microReassurances.map((item) => (
+            <span key={item.text} className="flex items-center gap-1.5 font-medium">
+              <span className="material-symbols-outlined text-base text-[#1b3d35]">
+                {item.icon}
               </span>
-            ))}
-          </div>
-        </FadeIn>
+              <span>{item.text}</span>
+            </span>
+          ))}
+        </motion.div>
       </div>
     </section>
   );
 }
+
+export default Hero;

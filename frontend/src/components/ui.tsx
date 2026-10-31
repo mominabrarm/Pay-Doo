@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { titleCase } from "../utils/format";
+import { RollingNumber } from "./motion/RollingNumber";
 
 export function PageHeader({ title, description, action }: { title: string; description: string; action?: ReactNode }) {
   return (
@@ -39,7 +40,19 @@ export function StatusBadge({ value }: { value: string }) {
 }
 
 export function MetricCard({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
-  return <article className="metric-card"><span>{label}</span><strong>{value}</strong>{hint && <small>{hint}</small>}</article>;
+  const content =
+    typeof value === "number" || (typeof value === "string" && /\d/.test(value)) ? (
+      <RollingNumber value={value} />
+    ) : (
+      value
+    );
+  return (
+    <article className="metric-card">
+      <span>{label}</span>
+      <strong>{content}</strong>
+      {hint && <small>{hint}</small>}
+    </article>
+  );
 }
 
 export function FormLabel({ label, children }: { label: string; children: ReactNode }) {

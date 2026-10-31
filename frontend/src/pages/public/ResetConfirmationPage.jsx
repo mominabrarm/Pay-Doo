@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { FadeIn } from "../../components/ui/Animations";
+import { Logo } from "../../components/Logo";
 
 export function ResetConfirmationPage() {
   const location = useLocation();
@@ -33,6 +34,12 @@ export function ResetConfirmationPage() {
         <div className="bg-white text-[#141b2b] rounded-2xl p-8 md:p-10 shadow-2xl border border-[#e2e4de] relative overflow-hidden flex flex-col justify-between">
           {/* Top accent line */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#ff9d7c] via-[#1b3d35] to-[#95482e]" />
+
+          <div className="mb-4 text-center">
+            <Link to="/" className="inline-flex transition-opacity hover:opacity-90">
+              <Logo height={32} alt="PayDoo" />
+            </Link>
+          </div>
 
           <div>
             <div className="flex items-center justify-between pb-4">
