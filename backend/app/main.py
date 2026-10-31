@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import Base, engine
-import app.models  # Ensure all models are registered
+import app.models
 from app.routers import (
     health,
     customers,
@@ -25,7 +25,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -48,4 +48,3 @@ def root():
         "docs": "/docs",
         "health": f"{settings.API_V1_PREFIX}/health",
     }
-

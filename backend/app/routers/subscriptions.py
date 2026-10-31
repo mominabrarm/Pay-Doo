@@ -1,4 +1,4 @@
-from datetime import date
+import uuid
 from decimal import Decimal
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -18,6 +18,15 @@ from app.services.billing import generate_subscription_invoice, round_currency
 
 router = APIRouter(prefix="/subscriptions", tags=["Subscriptions"])
 
+VALID_TRANSITIONS = {
+    "draft": ["quotation", "confirmed", "active", "closed"],
+    "quotation": ["confirmed", "closed"],
+    "confirmed": ["active", "closed"],
+    "active": ["paused", "closed"],
+    "paused": ["active", "closed"],
+    "closed": [],
+}
+
 
 @router.post("", response_model=SubscriptionResponse, status_code=status.HTTP_201_CREATED)
 def create_subscription(payload: SubscriptionCreate, db: Session = Depends(get_db)):
@@ -32,15 +41,15 @@ def create_subscription(payload: SubscriptionCreate, db: Session = Depends(get_d
     if not payload.lines:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Subscription must contain at least one product line.")
 
-    sub_count = db.query(Subscription).count() + 1
-    sub_number = f"SUB-{payload.start_date.year}-{sub_count:05d}"
+    unique_suffix = uuid.uuid4().hex[:6].upper()
+    sub_number = f"SUB-{payload.start_date.year}-{unique_suffix}"
 
     subscription = Subscription(
         subscription_number=sub_number,
         customer_id=payload.customer_id,
         plan_id=payload.plan_id,
         discount_rule_id=payload.discount_rule_id,
-        status="active",
+        status=payload.status,
         start_date=payload.start_date,
         expiry_date=payload.expiry_date,
         next_billing_date=payload.start_date,
@@ -110,13 +119,26 @@ def update_subscription_status(
     if not sub:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found.")
 
-    if payload.status == "paused" and not sub.plan.allow_pause:
+    current_status = sub.status
+    target_status = payload.status
+
+    if current_status == target_status:
+        return sub
+
+    allowed = VALID_TRANSITIONS.get(current_status, [])
+    if target_status not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid state transition from '{current_status}' to '{target_status}'. Allowed transitions: {allowed}",
+        )
+
+    if target_status == "paused" and not sub.plan.allow_pause:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Pausing is not permitted by this subscription's plan policy.",
         )
 
-    sub.status = payload.status
+    sub.status = target_status
     db.commit()
     db.refresh(sub)
     return sub
@@ -135,4 +157,3 @@ def generate_invoice(
         period_end=payload.billing_period_end,
         due_date=payload.due_date,
     )
-

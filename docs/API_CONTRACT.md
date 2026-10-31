@@ -1,5 +1,5 @@
 # Brightloop Subscription Management System — API Contract
-**Version:** 1.0.0  
+**Version:** 1.1.0  
 **Base URL:** `http://localhost:8000/api`  
 **Standard Response Content-Type:** `application/json`
 
@@ -15,11 +15,11 @@ All errors return standard HTTP error payloads:
 }
 ```
 
-### Money Format
-Monetary values are serialized as `Decimal` strings or two-decimal numbers (e.g. `1200.00`). Backend performs all calculations using Python `Decimal` and database `NUMERIC(12, 2)`.
+### Money Format & Precision
+Monetary values are serialized as `Decimal` strings or two-decimal numbers (e.g. `1200.00`). Backend performs all calculations using Python `Decimal` and database `NUMERIC(12, 2)`. Line totals and invoice totals reconcile 100% to the exact penny.
 
-### State Enums
-- **Subscription Status:** `draft`, `quotation`, `confirmed`, `active`, `closed`, `paused`
+### State Enums & Lifecycle
+- **Subscription Status:** `draft` $\rightarrow$ `quotation` $\rightarrow$ `confirmed` $\rightarrow$ `active` $\rightarrow$ `closed` / `paused`
 - **Invoice Status:** `draft`, `confirmed`, `paid`, `cancelled`
 - **Payment Method:** `bank_transfer`, `credit_card`, `upi`, `cash`
 - **Billing Interval:** `daily`, `weekly`, `monthly`, `yearly`
@@ -54,21 +54,7 @@ Monetary values are serialized as `Decimal` strings or two-decimal numbers (e.g.
       "country": "India"
     }
     ```
-  - **Response `201 Created`:**
-    ```json
-    {
-      "id": 1,
-      "name": "Acme Corp",
-      "email": "billing@acme.com",
-      "phone": "+91-9876543210",
-      "address": "123 Tech Park",
-      "city": "Bengaluru",
-      "country": "India",
-      "is_active": true,
-      "created_at": "2026-10-31T10:00:00Z",
-      "updated_at": "2026-10-31T10:00:00Z"
-    }
-    ```
+  - **Response `201 Created`:** Customer object.
   - **Errors:** `400 Bad Request` (Email already registered, invalid email format).
 
 - **`GET /api/customers`**
@@ -171,6 +157,7 @@ Monetary values are serialized as `Decimal` strings or two-decimal numbers (e.g.
       "start_date": "2026-11-01",
       "expiry_date": "2027-10-31",
       "payment_terms": "Net 15",
+      "status": "draft",
       "lines": [
         {
           "product_id": 1,
@@ -182,17 +169,14 @@ Monetary values are serialized as `Decimal` strings or two-decimal numbers (e.g.
       ]
     }
     ```
-  - **Response `201 Created`:** Subscription object including populated lines and status `"active"`.
+  - **Response `201 Created`:** Subscription object with collision-safe identifier `SUB-2026-XXXXXX`.
 
 - **`GET /api/subscriptions`**
-  - **Query Params:** `customer_id` (optional), `status` (optional), `skip`, `limit`
+  - **Query Params:** `customer_id`, `status`, `skip`, `limit`
   - **Response `200 OK`:** List of subscriptions with line items.
 
-- **`GET /api/subscriptions/{id}`**
-  - **Response `200 OK`:** Subscription details with customer, plan, and lines.
-
 - **`PATCH /api/subscriptions/{id}/status`**
-  - **Request Body:** `{"status": "paused"}` (or `"active"`, `"closed"`)
+  - **Request Body:** `{"status": "active"}` (validated against allowed transitions: `draft` $\rightarrow$ `quotation`/`confirmed`/`active` $\rightarrow$ `paused`/`closed`)
   - **Response `200 OK`:** Updated subscription.
 
 ---
@@ -207,11 +191,15 @@ Monetary values are serialized as `Decimal` strings or two-decimal numbers (e.g.
       "due_date": "2026-11-15"
     }
     ```
+  - **Validations Enforced:**
+    - Period duration must match plan interval (`daily` = 1 day, `weekly` = 7 days, `monthly` = 28-31 days, `yearly` = 365-366 days).
+    - `period_start` cannot precede subscription start date.
+    - `period_end` cannot exceed subscription expiry date.
   - **Response `201 Created`:**
     ```json
     {
       "id": 1,
-      "invoice_number": "INV-2026-00001",
+      "invoice_number": "INV-2026-XXXXXX",
       "subscription_id": 1,
       "customer_id": 1,
       "billing_period_start": "2026-11-01",
@@ -231,6 +219,7 @@ Monetary values are serialized as `Decimal` strings or two-decimal numbers (e.g.
           "description": "Brightloop Enterprise Suite (Brand: Odoo Integration)",
           "quantity": 5,
           "unit_price": "1760.00",
+          "discount_amount": "880.00",
           "tax_rate": "18.00",
           "tax_amount": "1425.60",
           "subtotal": "8800.00",
@@ -239,20 +228,24 @@ Monetary values are serialized as `Decimal` strings or two-decimal numbers (e.g.
       ]
     }
     ```
-  - **Critical Invariant (`409 Conflict`):**
-    If an invoice for this subscription and billing period already exists:
+  - **Duplicate Rejection (`409 Conflict`):** Rejects second billing for same subscription and period.
+
+- **`POST /api/invoices/run-billing-cycle`**
+  - **Batch Automated Billing Run** for all subscriptions due up to `target_date`.
+  - **Response `200 OK`:**
     ```json
     {
-      "detail": "Invoice already generated for subscription 1 and period 2026-11-01 to 2026-11-30."
+      "status": "success",
+      "run_date": "2026-10-31",
+      "invoices_generated": 14,
+      "total_billed": "28450.00",
+      "skipped_already_billed": 2
     }
     ```
 
 - **`GET /api/invoices`**
-  - **Query Params:** `customer_id` (optional), `status` (optional), `is_overdue` (optional bool)
-  - **Response `200 OK`:** List of invoices with computed balances.
-
-- **`GET /api/invoices/{id}`**
-  - **Response `200 OK`:** Full invoice details with payment history.
+  - **Query Params:** `customer_id`, `status`, `is_overdue`
+  - **Response `200 OK`:** List of invoices.
 
 ---
 
@@ -267,50 +260,10 @@ Monetary values are serialized as `Decimal` strings or two-decimal numbers (e.g.
       "notes": "HDFC Ref #TXN987654"
     }
     ```
-  - **Response `201 Created`:**
-    ```json
-    {
-      "payment_id": 1,
-      "payment_number": "PAY-2026-00001",
-      "invoice_id": 1,
-      "amount": "9345.60",
-      "payment_method": "bank_transfer",
-      "payment_date": "2026-11-02",
-      "status": "success",
-      "invoice_status": "paid",
-      "invoice_amount_paid": "9345.60",
-      "invoice_outstanding_balance": "0.00"
-    }
-    ```
-  - **Errors:**
-    - `400 Bad Request`: Payment amount exceeds outstanding balance or is non-positive.
-    - `404 Not Found`: Invoice not found.
+  - **Response `201 Created`:** Payment record with updated invoice balance.
 
 ---
 
 ### 2.9 Finance Lead KPI Dashboard
 - **`GET /api/dashboard/summary`**
-  - **Response `200 OK`:**
-    ```json
-    {
-      "active_subscriptions_count": 142,
-      "total_revenue_collected": "542300.00",
-      "total_outstanding_receivables": "84500.00",
-      "overdue_invoices_count": 7,
-      "overdue_invoices_amount": "21400.00",
-      "subscriptions_by_interval": {
-        "monthly": 110,
-        "yearly": 32
-      },
-      "recent_activity": [
-        {
-          "type": "payment",
-          "reference": "PAY-2026-00001",
-          "customer_name": "Acme Corp",
-          "amount": "9345.60",
-          "date": "2026-11-02"
-        }
-      ]
-    }
-    ```
-
+  - **Response `200 OK`:** Aggregated counts and totals across active subscriptions, revenue, receivables, and overdue invoices.

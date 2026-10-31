@@ -35,6 +35,7 @@ class SubscriptionCreate(BaseModel):
     start_date: date
     expiry_date: Optional[date] = None
     payment_terms: str = "Immediate"
+    status: SubscriptionStatus = "draft"
     lines: List[SubscriptionLineCreate]
 
 
@@ -60,4 +61,3 @@ class SubscriptionResponse(BaseModel):
     lines: List[SubscriptionLineResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
-

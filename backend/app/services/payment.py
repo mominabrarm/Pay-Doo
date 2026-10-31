@@ -1,3 +1,4 @@
+import uuid
 from datetime import date
 from decimal import Decimal
 from fastapi import HTTPException, status
@@ -45,8 +46,8 @@ def record_invoice_payment(
             detail=f"Payment amount ({payment_amount}) exceeds outstanding balance ({current_outstanding}).",
         )
 
-    payment_count = db.query(Payment).count() + 1
-    payment_number = f"PAY-{payment_date.year}-{payment_count:05d}"
+    unique_suffix = uuid.uuid4().hex[:6].upper()
+    payment_number = f"PAY-{payment_date.year}-{unique_suffix}"
 
     payment = Payment(
         payment_number=payment_number,
@@ -72,4 +73,3 @@ def record_invoice_payment(
     db.refresh(payment)
     db.refresh(invoice)
     return payment
-

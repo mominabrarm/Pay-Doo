@@ -15,7 +15,7 @@ class Invoice(Base, TimestampMixin):
     billing_period_end = Column(Date, nullable=False)
     issue_date = Column(Date, nullable=False)
     due_date = Column(Date, nullable=False, index=True)
-    status = Column(String(30), default="confirmed", nullable=False, index=True)  # draft, confirmed, paid, cancelled
+    status = Column(String(30), default="confirmed", nullable=False, index=True)
     subtotal = Column(Numeric(12, 2), nullable=False)
     discount_amount = Column(Numeric(12, 2), default=0.00, nullable=False)
     tax_amount = Column(Numeric(12, 2), default=0.00, nullable=False)
@@ -43,6 +43,7 @@ class InvoiceLine(Base, TimestampMixin):
     description = Column(String(255), nullable=False)
     quantity = Column(Integer, default=1, nullable=False)
     unit_price = Column(Numeric(12, 2), nullable=False)
+    discount_amount = Column(Numeric(12, 2), default=0.00, nullable=False)
     tax_rate = Column(Numeric(5, 2), default=0.00, nullable=False)
     tax_amount = Column(Numeric(12, 2), default=0.00, nullable=False)
     subtotal = Column(Numeric(12, 2), nullable=False)
@@ -51,4 +52,3 @@ class InvoiceLine(Base, TimestampMixin):
     invoice = relationship("Invoice", back_populates="lines")
     product = relationship("Product")
     variant = relationship("ProductVariant")
-

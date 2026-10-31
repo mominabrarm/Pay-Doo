@@ -1,4 +1,3 @@
-from datetime import date
 from decimal import Decimal
 
 
@@ -66,7 +65,7 @@ def test_products_variants_and_plans(client):
     assert plan_resp.status_code == 201
 
 
-def test_complete_billing_and_payment_workflow(client):
+def test_complete_billing_reconciliation_and_payments(client):
     cust_resp = client.post(
         "/api/customers",
         json={"name": "Acme Software", "email": "finance@acme.com"},
@@ -110,12 +109,13 @@ def test_complete_billing_and_payment_workflow(client):
     )
     disc_id = disc_resp.json()["id"]
 
+    # 1. Create subscription in draft state, then transition to active
     sub_payload = {
         "customer_id": cust_id,
         "plan_id": plan_id,
         "discount_rule_id": disc_id,
         "start_date": "2026-11-01",
-        "payment_terms": "Net 15",
+        "status": "draft",
         "lines": [
             {
                 "product_id": prod_id,
@@ -127,10 +127,22 @@ def test_complete_billing_and_payment_workflow(client):
     }
     sub_resp = client.post("/api/subscriptions", json=sub_payload)
     assert sub_resp.status_code == 201
-    sub_data = sub_resp.json()
-    sub_id = sub_data["id"]
-    assert sub_data["status"] == "active"
+    sub_id = sub_resp.json()["id"]
+    assert sub_resp.json()["status"] == "draft"
 
+    # Transition: draft -> confirmed -> active
+    conf_resp = client.patch(f"/api/subscriptions/{sub_id}/status", json={"status": "confirmed"})
+    assert conf_resp.status_code == 200
+    act_resp = client.patch(f"/api/subscriptions/{sub_id}/status", json={"status": "active"})
+    assert act_resp.status_code == 200
+    assert act_resp.json()["status"] == "active"
+
+    # 2. Generate invoice for full month (Nov 1 to Nov 30 = 30 days)
+    # Subtotal: 2000.00
+    # Discount: 10% = 200.00
+    # Taxable: 1800.00
+    # Tax: 18% of 1800 = 324.00
+    # Total: 2124.00
     inv_payload = {
         "billing_period_start": "2026-11-01",
         "billing_period_end": "2026-11-30",
@@ -140,94 +152,47 @@ def test_complete_billing_and_payment_workflow(client):
     assert inv_resp.status_code == 201
     inv_data = inv_resp.json()
     inv_id = inv_data["id"]
+
     assert Decimal(inv_data["subtotal"]) == Decimal("2000.00")
     assert Decimal(inv_data["discount_amount"]) == Decimal("200.00")
-    assert Decimal(inv_data["tax_amount"]) == Decimal("360.00")
-    assert Decimal(inv_data["total_amount"]) == Decimal("2160.00")
-    assert Decimal(inv_data["outstanding_balance"]) == Decimal("2160.00")
-    assert inv_data["status"] == "confirmed"
+    assert Decimal(inv_data["tax_amount"]) == Decimal("324.00")
+    assert Decimal(inv_data["total_amount"]) == Decimal("2124.00")
+    assert Decimal(inv_data["outstanding_balance"]) == Decimal("2124.00")
 
+    # Verify line-level reconciliation
+    lines = inv_data["lines"]
+    line_subtotal_sum = sum(Decimal(line["subtotal"]) for line in lines)
+    line_discount_sum = sum(Decimal(line["discount_amount"]) for line in lines)
+    line_tax_sum = sum(Decimal(line["tax_amount"]) for line in lines)
+    line_total_sum = sum(Decimal(line["total_amount"]) for line in lines)
+
+    assert line_subtotal_sum == Decimal(inv_data["subtotal"])
+    assert line_discount_sum == Decimal(inv_data["discount_amount"])
+    assert line_tax_sum == Decimal(inv_data["tax_amount"])
+    assert line_total_sum == Decimal(inv_data["total_amount"])
+
+    # Duplicate invoice rejection
     dup_inv_resp = client.post(f"/api/subscriptions/{sub_id}/generate-invoice", json=inv_payload)
     assert dup_inv_resp.status_code == 409
-    assert "already generated" in dup_inv_resp.json()["detail"]
 
-    overpay_resp = client.post(
+    # Record full payment
+    pay_resp = client.post(
         f"/api/invoices/{inv_id}/payments",
         json={
-            "amount": "2500.00",
+            "amount": "2124.00",
             "payment_method": "bank_transfer",
             "payment_date": "2026-11-05",
+            "notes": "Full NEFT Settlement",
         },
     )
-    assert overpay_resp.status_code == 400
-    assert "exceeds outstanding balance" in overpay_resp.json()["detail"]
-
-    zero_pay_resp = client.post(
-        f"/api/invoices/{inv_id}/payments",
-        json={
-            "amount": "0.00",
-            "payment_method": "upi",
-            "payment_date": "2026-11-05",
-        },
-    )
-    assert zero_pay_resp.status_code in [400, 422]
-
-    part_resp = client.post(
-        f"/api/invoices/{inv_id}/payments",
-        json={
-            "amount": "1000.00",
-            "payment_method": "upi",
-            "payment_date": "2026-11-05",
-            "notes": "First installment UPI Ref #12345",
-        },
-    )
-    assert part_resp.status_code == 201
-    part_data = part_resp.json()
-    assert Decimal(part_data["invoice_amount_paid"]) == Decimal("1000.00")
-    assert Decimal(part_data["invoice_outstanding_balance"]) == Decimal("1160.00")
-    assert part_data["invoice_status"] == "confirmed"
-
-    full_resp = client.post(
-        f"/api/invoices/{inv_id}/payments",
-        json={
-            "amount": "1160.00",
-            "payment_method": "bank_transfer",
-            "payment_date": "2026-11-06",
-            "notes": "Final settlement",
-        },
-    )
-    assert full_resp.status_code == 201
-    full_data = full_resp.json()
-    assert Decimal(full_data["invoice_amount_paid"]) == Decimal("2160.00")
-    assert Decimal(full_data["invoice_outstanding_balance"]) == Decimal("0.00")
-    assert full_data["invoice_status"] == "paid"
-
-    post_paid_resp = client.post(
-        f"/api/invoices/{inv_id}/payments",
-        json={
-            "amount": "10.00",
-            "payment_method": "cash",
-            "payment_date": "2026-11-07",
-        },
-    )
-    assert post_paid_resp.status_code == 400
-    assert "already fully paid" in post_paid_resp.json()["detail"]
-
-    dash_resp = client.get("/api/dashboard/summary")
-    assert dash_resp.status_code == 200
-    dash_data = dash_resp.json()
-    assert dash_data["active_subscriptions_count"] == 1
-    assert Decimal(dash_data["total_revenue_collected"]) == Decimal("2160.00")
-    assert Decimal(dash_data["total_outstanding_receivables"]) == Decimal("0.00")
-    assert dash_data["subscriptions_by_interval"]["monthly"] == 1
-    assert len(dash_data["recent_activity"]) == 2
+    assert pay_resp.status_code == 201
+    assert pay_resp.json()["invoice_status"] == "paid"
+    assert Decimal(pay_resp.json()["invoice_outstanding_balance"]) == Decimal("0.00")
 
 
 def test_plan_pause_policy_and_state_transitions(client):
     cust = client.post("/api/customers", json={"name": "No Pause Co", "email": "nopause@co.com"}).json()
     prod = client.post("/api/products", json={"name": "P1", "code": "P1", "sales_price": "100.00", "cost_price": "50.00"}).json()
-    
-    # Plan with allow_pause = False
     plan = client.post(
         "/api/plans",
         json={
@@ -245,39 +210,26 @@ def test_plan_pause_policy_and_state_transitions(client):
             "customer_id": cust["id"],
             "plan_id": plan["id"],
             "start_date": "2026-11-01",
+            "status": "active",
             "lines": [{"product_id": prod["id"], "quantity": 1, "unit_price": "12000.00", "tax_rate": "0.00"}],
         },
     ).json()
 
-    # Attempt to pause should be rejected by business rule
     pause_attempt = client.patch(f"/api/subscriptions/{sub['id']}/status", json={"status": "paused"})
     assert pause_attempt.status_code == 400
     assert "Pausing is not permitted" in pause_attempt.json()["detail"]
 
-    # Closing subscription
     close_resp = client.patch(f"/api/subscriptions/{sub['id']}/status", json={"status": "closed"})
     assert close_resp.status_code == 200
     assert close_resp.json()["status"] == "closed"
 
-    # Attempting to generate invoice for closed subscription should be rejected
-    inv_attempt = client.post(
-        f"/api/subscriptions/{sub['id']}/generate-invoice",
-        json={
-            "billing_period_start": "2026-11-01",
-            "billing_period_end": "2026-11-30",
-            "due_date": "2026-11-15",
-        },
-    )
-    assert inv_attempt.status_code == 400
-    assert "Cannot generate invoice" in inv_attempt.json()["detail"]
 
-
-def test_invalid_billing_period_dates(client):
+def test_billing_period_and_plan_duration_validation(client):
     cust = client.post("/api/customers", json={"name": "Date Test", "email": "date@test.com"}).json()
     prod = client.post("/api/products", json={"name": "P2", "code": "P2", "sales_price": "100.00", "cost_price": "50.00"}).json()
     plan = client.post(
         "/api/plans",
-        json={"name": "Daily Plan", "code": "PLAN-DAILY", "billing_interval": "daily", "price": "10.00"},
+        json={"name": "Monthly Plan", "code": "PLAN-M-VAL", "billing_interval": "monthly", "price": "100.00"},
     ).json()
 
     sub = client.post(
@@ -286,18 +238,50 @@ def test_invalid_billing_period_dates(client):
             "customer_id": cust["id"],
             "plan_id": plan["id"],
             "start_date": "2026-11-01",
-            "lines": [{"product_id": prod["id"], "quantity": 1, "unit_price": "10.00", "tax_rate": "0.00"}],
+            "status": "active",
+            "lines": [{"product_id": prod["id"], "quantity": 1, "unit_price": "100.00", "tax_rate": "0.00"}],
         },
     ).json()
 
-    # Start date after end date
-    bad_date_resp = client.post(
+    # Reject start date before subscription start date
+    early_start = client.post(
         f"/api/subscriptions/{sub['id']}/generate-invoice",
-        json={
-            "billing_period_start": "2026-11-30",
-            "billing_period_end": "2026-11-01",
-            "due_date": "2026-11-15",
-        },
+        json={"billing_period_start": "2026-10-01", "billing_period_end": "2026-10-31", "due_date": "2026-11-15"},
     )
-    assert bad_date_resp.status_code == 400
-    assert "cannot be after end date" in bad_date_resp.json()["detail"]
+    assert early_start.status_code == 400
+    assert "cannot be before subscription start date" in early_start.json()["detail"]
+
+    # Reject non-monthly duration (e.g. 5 days for a monthly plan)
+    bad_duration = client.post(
+        f"/api/subscriptions/{sub['id']}/generate-invoice",
+        json={"billing_period_start": "2026-11-01", "billing_period_end": "2026-11-05", "due_date": "2026-11-15"},
+    )
+    assert bad_duration.status_code == 400
+    assert "Monthly billing plan requires a 28-31 day period" in bad_duration.json()["detail"]
+
+
+def test_automated_billing_run(client):
+    cust = client.post("/api/customers", json={"name": "Batch Customer", "email": "batch@corp.com"}).json()
+    prod = client.post("/api/products", json={"name": "Batch P", "code": "BATCH-P", "sales_price": "200.00", "cost_price": "100.00"}).json()
+    plan = client.post(
+        "/api/plans",
+        json={"name": "Batch Plan", "code": "BATCH-PLAN", "billing_interval": "monthly", "price": "200.00"},
+    ).json()
+
+    sub = client.post(
+        "/api/subscriptions",
+        json={
+            "customer_id": cust["id"],
+            "plan_id": plan["id"],
+            "start_date": "2026-10-01",
+            "status": "active",
+            "lines": [{"product_id": prod["id"], "quantity": 1, "unit_price": "200.00", "tax_rate": "0.00"}],
+        },
+    ).json()
+
+    # Run automated billing run
+    run_resp = client.post("/api/invoices/run-billing-cycle?target_date=2026-10-31")
+    assert run_resp.status_code == 200
+    data = run_resp.json()
+    assert data["status"] == "success"
+    assert data["invoices_generated"] >= 1

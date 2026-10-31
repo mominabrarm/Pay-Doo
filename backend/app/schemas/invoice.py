@@ -1,7 +1,7 @@
 from datetime import datetime, date
 from decimal import Decimal
 from typing import Optional, List, Literal
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 InvoiceStatus = Literal["draft", "confirmed", "paid", "cancelled"]
 
@@ -19,6 +19,7 @@ class InvoiceLineResponse(BaseModel):
     description: str
     quantity: int
     unit_price: Decimal
+    discount_amount: Decimal = Decimal("0.00")
     tax_rate: Decimal
     tax_amount: Decimal
     subtotal: Decimal
@@ -48,4 +49,3 @@ class InvoiceResponse(BaseModel):
     lines: List[InvoiceLineResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
-

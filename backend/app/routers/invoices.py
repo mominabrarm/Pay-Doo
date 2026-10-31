@@ -1,11 +1,14 @@
-from datetime import date
+from datetime import date, timedelta
+from decimal import Decimal
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.invoice import Invoice
+from app.models.subscription import Subscription
 from app.schemas.invoice import InvoiceResponse
 from app.schemas.payment import PaymentCreate, PaymentResponse
+from app.services.billing import generate_subscription_invoice
 from app.services.payment import record_invoice_payment
 
 router = APIRouter(prefix="/invoices", tags=["Invoices"])
@@ -75,3 +78,67 @@ def add_payment(
         invoice_outstanding_balance=payment.invoice.outstanding_balance,
     )
 
+
+@router.post("/run-billing-cycle", status_code=status.HTTP_200_OK)
+def run_automated_billing_cycle(
+    target_date: Optional[date] = None,
+    db: Session = Depends(get_db),
+):
+    run_date = target_date or date.today()
+    due_subscriptions = (
+        db.query(Subscription)
+        .filter(
+            Subscription.status.in_(["active", "confirmed"]),
+            Subscription.next_billing_date <= run_date,
+        )
+        .all()
+    )
+
+    invoices_generated = 0
+    total_billed = Decimal("0.00")
+    skipped_count = 0
+
+    for sub in due_subscriptions:
+        p_start = sub.next_billing_date
+        interval = sub.plan.billing_interval
+
+        if interval == "daily":
+            p_end = p_start
+            next_date = p_start + timedelta(days=1)
+        elif interval == "weekly":
+            p_end = p_start + timedelta(days=6)
+            next_date = p_start + timedelta(days=7)
+        elif interval == "yearly":
+            p_end = p_start.replace(year=p_start.year + 1) - timedelta(days=1)
+            next_date = p_start.replace(year=p_start.year + 1)
+        else:  # monthly
+            # Last day of current month
+            next_month = p_start.replace(day=28) + timedelta(days=4)
+            p_end = next_month.replace(day=1) - timedelta(days=1)
+            next_date = next_month.replace(day=1)
+
+        try:
+            inv = generate_subscription_invoice(
+                db=db,
+                subscription_id=sub.id,
+                period_start=p_start,
+                period_end=p_end,
+                due_date=p_start + timedelta(days=15),
+            )
+            sub.next_billing_date = next_date
+            db.commit()
+            invoices_generated += 1
+            total_billed += Decimal(str(inv.total_amount))
+        except HTTPException as e:
+            if e.status_code == status.HTTP_409_CONFLICT:
+                skipped_count += 1
+            else:
+                pass
+
+    return {
+        "status": "success",
+        "run_date": run_date.isoformat(),
+        "invoices_generated": invoices_generated,
+        "total_billed": total_billed,
+        "skipped_already_billed": skipped_count,
+    }

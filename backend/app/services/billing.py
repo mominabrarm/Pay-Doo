@@ -1,3 +1,4 @@
+import uuid
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 from fastapi import HTTPException, status
@@ -12,6 +13,50 @@ def round_currency(val: Decimal) -> Decimal:
     return val.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
+def validate_billing_period(subscription: Subscription, period_start: date, period_end: date):
+    if period_start > period_end:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Billing period start date cannot be after end date.",
+        )
+
+    if period_start < subscription.start_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Billing period start ({period_start}) cannot be before subscription start date ({subscription.start_date}).",
+        )
+
+    if subscription.expiry_date and period_end > subscription.expiry_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Billing period end ({period_end}) cannot exceed subscription expiry date ({subscription.expiry_date}).",
+        )
+
+    interval = subscription.plan.billing_interval
+    duration_days = (period_end - period_start).days + 1
+
+    if interval == "daily" and duration_days != 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Daily billing plan requires a 1-day period (got {duration_days} days).",
+        )
+    elif interval == "weekly" and duration_days != 7:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Weekly billing plan requires a 7-day period (got {duration_days} days).",
+        )
+    elif interval == "monthly" and not (28 <= duration_days <= 31):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Monthly billing plan requires a 28-31 day period (got {duration_days} days).",
+        )
+    elif interval == "yearly" and not (365 <= duration_days <= 366):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Yearly billing plan requires a 365-366 day period (got {duration_days} days).",
+        )
+
+
 def generate_subscription_invoice(
     db: Session,
     subscription_id: int,
@@ -19,12 +64,6 @@ def generate_subscription_invoice(
     period_end: date,
     due_date: date,
 ) -> Invoice:
-    if period_start > period_end:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Billing period start date cannot be after end date.",
-        )
-
     subscription = db.query(Subscription).filter(Subscription.id == subscription_id).first()
     if not subscription:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found.")
@@ -34,6 +73,8 @@ def generate_subscription_invoice(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Cannot generate invoice for subscription in '{subscription.status}' state.",
         )
+
+    validate_billing_period(subscription, period_start, period_end)
 
     existing_invoice = (
         db.query(Invoice)
@@ -51,49 +92,42 @@ def generate_subscription_invoice(
         )
 
     subtotal = Decimal("0.00")
-    total_tax = Decimal("0.00")
     total_quantity = 0
-    invoice_lines_data = []
+    lines_pre_calc = []
 
     for line in subscription.lines:
         line_subtotal = round_currency(Decimal(str(line.unit_price)) * Decimal(str(line.quantity)))
-        tax_rate = Decimal(str(line.tax_rate))
-        line_tax = round_currency(line_subtotal * (tax_rate / Decimal("100.00")))
-        line_total = line_subtotal + line_tax
-
         subtotal += line_subtotal
-        total_tax += line_tax
         total_quantity += line.quantity
 
         desc = line.product.name
         if line.variant:
             desc += f" ({line.variant.variant_name})"
 
-        invoice_lines_data.append(
+        lines_pre_calc.append(
             {
                 "product_id": line.product_id,
                 "variant_id": line.variant_id,
                 "description": desc,
                 "quantity": line.quantity,
                 "unit_price": line.unit_price,
-                "tax_rate": line.tax_rate,
-                "tax_amount": line_tax,
+                "tax_rate": Decimal(str(line.tax_rate)),
                 "subtotal": line_subtotal,
-                "total_amount": line_total,
             }
         )
 
-    discount_amount = Decimal("0.00")
+    # Evaluate discount with row-level lock and atomic limit check
+    total_discount = Decimal("0.00")
     if subscription.discount_rule_id:
         discount_rule = (
             db.query(DiscountRule)
             .filter(DiscountRule.id == subscription.discount_rule_id, DiscountRule.is_active == True)
+            .with_for_update()
             .first()
         )
         if discount_rule:
-            today = date.today()
-            is_valid_date = (not discount_rule.start_date or discount_rule.start_date <= today) and (
-                not discount_rule.end_date or discount_rule.end_date >= today
+            is_valid_period = (not discount_rule.start_date or discount_rule.start_date <= period_end) and (
+                not discount_rule.end_date or discount_rule.end_date >= period_start
             )
             has_uses_left = discount_rule.max_uses is None or discount_rule.current_uses < discount_rule.max_uses
             meets_threshold = (
@@ -101,20 +135,55 @@ def generate_subscription_invoice(
                 and total_quantity >= discount_rule.min_quantity
             )
 
-            if is_valid_date and has_uses_left and meets_threshold:
+            if is_valid_period and has_uses_left and meets_threshold:
                 if discount_rule.discount_type == "percentage":
-                    discount_amount = round_currency(subtotal * (Decimal(str(discount_rule.value)) / Decimal("100.00")))
+                    total_discount = round_currency(subtotal * (Decimal(str(discount_rule.value)) / Decimal("100.00")))
                 else:
-                    discount_amount = round_currency(Decimal(str(discount_rule.value)))
+                    total_discount = round_currency(Decimal(str(discount_rule.value)))
 
-                if discount_amount > subtotal:
-                    discount_amount = subtotal
+                if total_discount > subtotal:
+                    total_discount = subtotal
 
                 discount_rule.current_uses += 1
 
-    total_amount = round_currency(subtotal - discount_amount + total_tax)
-    invoice_count = db.query(Invoice).count() + 1
-    invoice_number = f"INV-{period_start.year}-{invoice_count:05d}"
+    # Allocate discount proportionally across lines for 100% reconciliation
+    allocated_discount_sum = Decimal("0.00")
+    total_tax = Decimal("0.00")
+    invoice_lines_data = []
+
+    for i, item in enumerate(lines_pre_calc):
+        if subtotal > Decimal("0.00") and total_discount > Decimal("0.00"):
+            if i == len(lines_pre_calc) - 1:
+                line_discount = round_currency(total_discount - allocated_discount_sum)
+            else:
+                line_discount = round_currency(total_discount * (item["subtotal"] / subtotal))
+                allocated_discount_sum += line_discount
+        else:
+            line_discount = Decimal("0.00")
+
+        taxable_amount = item["subtotal"] - line_discount
+        line_tax = round_currency(taxable_amount * (item["tax_rate"] / Decimal("100.00")))
+        line_total = taxable_amount + line_tax
+        total_tax += line_tax
+
+        invoice_lines_data.append(
+            {
+                "product_id": item["product_id"],
+                "variant_id": item["variant_id"],
+                "description": item["description"],
+                "quantity": item["quantity"],
+                "unit_price": item["unit_price"],
+                "discount_amount": line_discount,
+                "tax_rate": item["tax_rate"],
+                "tax_amount": line_tax,
+                "subtotal": item["subtotal"],
+                "total_amount": line_total,
+            }
+        )
+
+    total_amount = round_currency(subtotal - total_discount + total_tax)
+    unique_suffix = uuid.uuid4().hex[:6].upper()
+    invoice_number = f"INV-{period_start.year}-{unique_suffix}"
 
     invoice = Invoice(
         invoice_number=invoice_number,
@@ -126,7 +195,7 @@ def generate_subscription_invoice(
         due_date=due_date,
         status="confirmed",
         subtotal=subtotal,
-        discount_amount=discount_amount,
+        discount_amount=total_discount,
         tax_amount=total_tax,
         total_amount=total_amount,
         amount_paid=Decimal("0.00"),
@@ -151,6 +220,7 @@ def generate_subscription_invoice(
             description=ldata["description"],
             quantity=ldata["quantity"],
             unit_price=ldata["unit_price"],
+            discount_amount=ldata["discount_amount"],
             tax_rate=ldata["tax_rate"],
             tax_amount=ldata["tax_amount"],
             subtotal=ldata["subtotal"],
@@ -161,4 +231,3 @@ def generate_subscription_invoice(
     db.commit()
     db.refresh(invoice)
     return invoice
-
