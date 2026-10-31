@@ -8,15 +8,10 @@
 
 ## 1. System Startup & Verification
 
-### Step 1: Environment Configuration
-In `backend/`, ensure `.env` is configured.
-
+### Step 1: Database Startup
 **Option A: PostgreSQL via Docker Compose (Default Production Target)**
 ```bash
 docker compose up -d
-```
-Verify container:
-```bash
 docker compose ps
 # Expected: brightloop_postgres running on 0.0.0.0:5432
 ```
@@ -31,19 +26,28 @@ DEBUG=false
 ```
 
 ### Step 2: Seed the Database
-Populate standard demonstration fixtures (customers, products with variants, plans, discounts, subscriptions):
+Populate standard demonstration fixtures (customers, products with variants, plans, discounts, subscriptions, historical invoices):
 ```bash
 cd backend
 python -m app.seed
 ```
 
-### Step 3: Launch Backend Server
+### Step 3: Launch Backend API Server
 ```bash
+cd backend
 python run.py
 ```
 - API Base: `http://localhost:8000/api`
-- Swagger UI: `http://localhost:8000/docs`
+- Interactive Swagger UI: `http://localhost:8000/docs`
 - Health check: `http://localhost:8000/api/health`
+
+### Step 4: Launch Frontend Application
+```bash
+cd frontend
+npm install
+npm run dev
+```
+- Web Application URL: `http://localhost:5173`
 
 ---
 
@@ -53,14 +57,14 @@ python run.py
 sequenceDiagram
     autonumber
     actor Presenter
-    participant UI as Frontend / Swagger UI
-    participant API as FastAPI Backend
-    participant DB as Database (Postgres / SQLite)
+    participant UI as Frontend (React UI / Vite)
+    participant API as FastAPI Backend (Port 8000)
+    participant DB as Persistence Engine (PostgreSQL / SQLite)
 
-    Presenter->>UI: 1. Open Dashboard & Customers
+    Presenter->>UI: 1. Open Executive Dashboard
     UI->>API: GET /api/dashboard/summary
-    API-->>UI: Real-time telemetry (MRR, Receivables)
-    Presenter->>UI: 2. View Product Catalog & Variants
+    API-->>UI: Real-time telemetry (MRR, Receivables, Overdue Invoices)
+    Presenter->>UI: 2. Navigate to Products & Variants
     UI->>API: GET /api/products
     API-->>UI: Products + Odoo brand variant (+560)
     Presenter->>UI: 3. Create New Subscription
@@ -72,56 +76,37 @@ sequenceDiagram
     Presenter->>UI: 5. Attempt Duplicate Invoicing (Idempotency Test)
     UI->>API: POST /api/subscriptions/{id}/generate-invoice (same period)
     API-->>UI: 409 Conflict: "Invoice already generated"
-    Presenter->>UI: 6. Record Partial Payment ($1,000.00)
+    Presenter->>UI: 6. Record Partial Payment ($1,000.00 via UPI)
     UI->>API: POST /api/invoices/{id}/payments
     API-->>UI: Balance drops to $1,160.00 (status: confirmed)
-    Presenter->>UI: 7. Settle Remaining Balance ($1,160.00)
+    Presenter->>UI: 7. Settle Remaining Balance ($1,160.00 via Bank Transfer)
     UI->>API: POST /api/invoices/{id}/payments
     API-->>UI: Balance reaches $0.00 (status: paid)
     Presenter->>UI: 8. Refresh Executive KPI Dashboard
     UI->>API: GET /api/dashboard/summary
-    API-->>UI: Revenue increased by $2,160.00 instantly
+    API-->>UI: Revenue increased by $2,160.00 with 0 balance discrepancy
 ```
 
-### Step 1: Real-Time Executive Dashboard
-- **Action:** Navigate to Dashboard (`/` or `GET /api/dashboard/summary`).
-- **Talking Point:** *"Pay-Doo replaces Brightloop's manual spreadsheets with real-time financial telemetry. Every metric—active subscriptions, recognized revenue, and overdue invoices—is calculated live from persisted transactions."*
-
-### Step 2: Catalog & Product Variants
-- **Action:** Open Products & Plans catalog (`GET /api/products`).
-- **Talking Point:** *"Notice the product 'Brightloop ERP Core' with variant 'Brand: Odoo Integration' carrying a price extra of +$560. Plans feature custom billing intervals (monthly, yearly) and strict pause/renewal governance."*
-
-### Step 3: Create a Subscription
-- **Action:** Create a subscription for customer Nexus Infotech with plan `PLAN-BIZ-M` and the Odoo variant line.
-- **Talking Point:** *"The subscription transitions into `active` state with automated next-billing-date tracking and line-item tax calculation."*
-
-### Step 4: Run Automated Invoicing
-- **Action:** Trigger invoice generation for the billing period `2026-11-01` to `2026-11-30`.
-- **Talking Point:** *"The billing engine generates invoice `INV-2026-XXXXX`. It computes subtotal, applies qualifying discount rules, calculates 18% GST, and establishes the initial outstanding balance."*
-
-### Step 5: Demonstrate Duplicate Billing Prevention (The Key Hackathon Test)
-- **Action:** Click "Generate Invoice" a second time for the exact same billing period.
-- **Expected Result:** The system immediately blocks the request with **HTTP 409 Conflict**:
-  `"Invoice already generated for subscription X and period 2026-11-01 to 2026-11-30."`
-- **Talking Point:** *"Judges, observe that Pay-Doo guarantees financial idempotency. Neither double clicks nor automated scheduler retries can double-bill Brightloop's clients. This is enforced both at the application service boundary and by a database unique constraint."*
-
-### Step 6: Payment Recording & Reconciliation
-- **Action A (Partial Payment):** Record payment of `$1,000.00` via UPI.
-  - Show invoice status remains `"confirmed"` with outstanding balance updated in real time.
-- **Action B (Settlement):** Record final settlement of `$1,160.00` via Bank Transfer.
-  - Show outstanding balance drops to `$0.00` and invoice status transitions automatically to `"paid"`.
-- **Action C (Overpayment Rejection):** Attempt to record `$10.00` on the paid invoice.
-  - System rejects with `"Invoice is already fully paid."`
-
-### Step 7: Executive Dashboard Telemetry Update
-- **Action:** Return to `/api/dashboard/summary`.
-- **Talking Point:** *"Instantly, total revenue collected reflects the newly settled funds, and receivables reconcile with zero discrepancy."*
+### Demonstration Narrative:
+1. **Executive Telemetry:** Start on `/` (Dashboard). Point out active subscriptions count, realized revenue, outstanding receivables, and overdue invoices calculated live from transactions.
+2. **Catalog & Plan Flexibility:** Show products, highlighting the variant system (e.g. Odoo brand addition of $+560$). Show plans with configurable intervals (daily, weekly, monthly, yearly) and pause policies.
+3. **Subscription Lifecycle:** Create a new subscription for customer Nexus Infotech. Verify its transition into `active` state with computed next-billing date.
+4. **Automated Billing Engine:** Open subscription details and click **"Generate Invoice"** for billing cycle `2026-11-01` to `2026-11-30`. The system calculates subtotal, discounts, 18% GST, and initial outstanding balance.
+5. **The Idempotency Judge Test:** Immediately click **"Generate Invoice"** a second time for the exact same billing cycle. The application blocks the duplicate request with **HTTP 409 Conflict**:
+   `"Invoice already generated for subscription X and period 2026-11-01 to 2026-11-30."`
+   *Emphasize that this is protected both in the application transaction and by a database unique constraint (`uq_subscription_billing_period`).*
+6. **Payment Settlement & Reconciliation:**
+   - Record partial payment of `$1,000.00` via UPI. Show that invoice status stays `confirmed` and outstanding balance drops to `$1,160.00`.
+   - Settle the remaining `$1,160.00` via Bank Transfer. Show outstanding balance drops to `$0.00` and status transitions to `paid`.
+   - Demonstrate overpayment guard: attempt to pay `$10.00` on the settled invoice. The system rejects with `"Invoice is already fully paid."`
+7. **Instant Financial Realization:** Return to Dashboard. The `$2,160.00` is immediately added to realized revenue, and receivables reconcile with penny-level accuracy.
 
 ---
 
-## 3. Fallback / Troubleshooting Guide
-- If Docker daemon is unavailable on the presentation machine, execute backend in SQLite mode (`DATABASE_URL="sqlite:///./brightloop.db"` in `.env`). Full functionality is preserved with zero code changes.
-- To re-verify all 14 end-to-end tests live in 1 second before the presentation:
-  ```bash
-  pytest -v
-  ```
+## 3. Pre-Demo Health Check Command
+Run the test suite in 1 second to ensure complete system readiness:
+```bash
+cd backend
+pytest -v
+# Expected: 14 passed in ~1.00s
+```
