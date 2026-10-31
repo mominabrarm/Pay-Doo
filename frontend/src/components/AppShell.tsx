@@ -12,6 +12,7 @@ interface NavItem {
 const navItemsByRole: Record<UserRole, NavItem[]> = {
   admin: [
     { path: "/dashboard", label: "Dashboard" },
+    { path: "/intelligence", label: "Intelligence" },
     { path: "/customers", label: "Customers" },
     { path: "/products", label: "Products" },
     { path: "/plans", label: "Plans" },
@@ -21,6 +22,7 @@ const navItemsByRole: Record<UserRole, NavItem[]> = {
   ],
   staff: [
     { path: "/dashboard", label: "Dashboard" },
+    { path: "/intelligence", label: "Intelligence" },
     { path: "/customers", label: "Customers" },
     { path: "/subscriptions", label: "Subscriptions" },
     { path: "/invoices", label: "Invoices" },

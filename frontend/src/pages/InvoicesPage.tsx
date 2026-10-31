@@ -13,6 +13,7 @@ import {
   Panel,
   StatusBadge,
 } from "../components/ui";
+import { ExplainBillModal } from "../components/ExplainBillModal";
 import { errorMessage, useCollection } from "../hooks/useCollection";
 import { formatCurrency, formatDate, today } from "../utils/format";
 
@@ -43,6 +44,7 @@ export function InvoicesPage() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [explainingInvoiceId, setExplainingInvoiceId] = useState<number | null>(null);
 
   async function generate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -85,8 +87,8 @@ export function InvoicesPage() {
         title={isCustomer ? "My Invoices" : "Invoices"}
         description={
           isCustomer
-            ? "Your billing statements, settlement history, and PDF downloads."
-            : "Generate confirmed invoices from active subscriptions and review live balances."
+            ? "Your billing statements, transparent charge breakdowns, and PDF downloads."
+            : "Generate confirmed invoices from active subscriptions, review live balances, and inspect billing explainability."
         }
       />
       <section className="invoice-workspace">
@@ -157,7 +159,7 @@ export function InvoicesPage() {
                       <th>Period</th>
                       <th>Status</th>
                       <th>Outstanding</th>
-                      <th />
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -176,12 +178,21 @@ export function InvoicesPage() {
                         </td>
                         <td>{formatCurrency(invoice.outstanding_balance)}</td>
                         <td>
-                          <button
-                            className="text-button"
-                            onClick={() => void viewInvoice(invoice.id)}
-                          >
-                            View
-                          </button>
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <button
+                              className="text-button"
+                              onClick={() => void viewInvoice(invoice.id)}
+                            >
+                              View
+                            </button>
+                            <button
+                              className="text-button"
+                              style={{ color: "#38bdf8" }}
+                              onClick={() => setExplainingInvoiceId(invoice.id)}
+                            >
+                              💡 Explain
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -196,8 +207,14 @@ export function InvoicesPage() {
           loading={detailLoading}
           error={detailError}
           isCustomer={isCustomer}
+          onExplain={(invId) => setExplainingInvoiceId(invId)}
         />
       </section>
+
+      <ExplainBillModal
+        invoiceId={explainingInvoiceId}
+        onClose={() => setExplainingInvoiceId(null)}
+      />
     </div>
   );
 }
@@ -279,11 +296,13 @@ function InvoiceDetail({
   loading,
   error,
   isCustomer,
+  onExplain,
 }: {
   invoice: Invoice | null;
   loading: boolean;
   error: string | null;
   isCustomer?: boolean;
+  onExplain?: (invoiceId: number) => void;
 }) {
   return (
     <Panel className="invoice-detail">
@@ -348,6 +367,13 @@ function InvoiceDetail({
             ))}
           </div>
           <div style={{ display: "flex", gap: "10px", marginTop: "16px", flexWrap: "wrap" }}>
+            <button
+              className="button"
+              style={{ backgroundColor: "#0284c7" }}
+              onClick={() => onExplain && onExplain(invoice.id)}
+            >
+              💡 Explain My Bill
+            </button>
             <a
               className="button secondary"
               href={api.getInvoicePdfUrl(invoice.id)}
@@ -358,7 +384,7 @@ function InvoiceDetail({
               ⬇ Download PDF
             </a>
             {!isCustomer && invoice.status !== "paid" && invoice.status !== "cancelled" && (
-              <Link className="button" to={`/payments?invoice=${invoice.id}`}>
+              <Link className="button secondary" to={`/payments?invoice=${invoice.id}`}>
                 Record payment
               </Link>
             )}

@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api/paydoo";
 import { getStoredUser } from "../api/client";
-import type { AuthUser, CustomerDashboardSummary, DashboardSummary } from "../api/types";
+import type {
+  AuthUser,
+  CustomerDashboardSummary,
+  DashboardSummary,
+  LeakageSummary,
+} from "../api/types";
 import {
   EmptyState,
   ErrorState,
@@ -11,12 +17,14 @@ import {
   Panel,
   StatusBadge,
 } from "../components/ui";
+import { ExplainBillModal } from "../components/ExplainBillModal";
 import { errorMessage } from "../hooks/useCollection";
 import { formatCurrency, formatDate, titleCase } from "../utils/format";
 
 export function DashboardPage() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(getStoredUser<AuthUser>());
   const [adminSummary, setAdminSummary] = useState<DashboardSummary | null>(null);
+  const [leakageSummary, setLeakageSummary] = useState<LeakageSummary | null>(null);
   const [customerSummary, setCustomerSummary] = useState<CustomerDashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,8 +39,12 @@ export function DashboardPage() {
         const data = await api.getCustomerDashboard();
         setCustomerSummary(data);
       } else {
-        const data = await api.getDashboard();
-        setAdminSummary(data);
+        const [dashData, leakData] = await Promise.all([
+          api.getDashboard(),
+          api.getLeakageSummary().catch(() => null),
+        ]);
+        setAdminSummary(dashData);
+        setLeakageSummary(leakData);
       }
     } catch (cause) {
       setError(errorMessage(cause));
@@ -82,21 +94,31 @@ export function DashboardPage() {
             : "Live revenue, receivables, and company-wide subscription activity."
         }
         action={
-          <button className="button secondary" onClick={() => void refresh()}>
-            Refresh data
-          </button>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <Link className="button" to="/intelligence">
+              💡 Financial Intelligence
+            </Link>
+            <button className="button secondary" onClick={() => void refresh()}>
+              Refresh data
+            </button>
+          </div>
         }
       />
       {loading && <LoadingState label="Loading dashboard" />}
       {error && <ErrorState message={error} retry={() => void refresh()} />}
       {adminSummary && !loading && !error && (
-        <AdminDashboardContent summary={adminSummary} />
+        <AdminDashboardContent
+          summary={adminSummary}
+          leakageSummary={leakageSummary}
+        />
       )}
     </>
   );
 }
 
 function CustomerDashboardContent({ summary }: { summary: CustomerDashboardSummary }) {
+  const [explainingInvoiceId, setExplainingInvoiceId] = useState<number | null>(null);
+
   return (
     <div className="page-stack">
       <section className="metric-grid">
@@ -127,7 +149,7 @@ function CustomerDashboardContent({ summary }: { summary: CustomerDashboardSumma
           <div className="panel-heading">
             <div>
               <h2>My recent invoices</h2>
-              <p>Your latest billing statements and direct PDF downloads.</p>
+              <p>Your latest billing statements, transparent breakdown, and PDF downloads.</p>
             </div>
           </div>
           {summary.recent_invoices.length === 0 ? (
@@ -145,7 +167,7 @@ function CustomerDashboardContent({ summary }: { summary: CustomerDashboardSumma
                     <th>Status</th>
                     <th>Total</th>
                     <th>Outstanding</th>
-                    <th>Action</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -161,16 +183,25 @@ function CustomerDashboardContent({ summary }: { summary: CustomerDashboardSumma
                       <td>{formatCurrency(inv.total_amount)}</td>
                       <td>{formatCurrency(inv.outstanding_balance)}</td>
                       <td>
-                        <a
-                          className="text-button"
-                          href={api.getInvoicePdfUrl(inv.id)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          download={`Invoice-${inv.invoice_number}.pdf`}
-                          style={{ textDecoration: "none" }}
-                        >
-                          ⬇ PDF
-                        </a>
+                        <div style={{ display: "flex", gap: "6px" }}>
+                          <button
+                            className="text-button"
+                            style={{ color: "#38bdf8" }}
+                            onClick={() => setExplainingInvoiceId(inv.id)}
+                          >
+                            💡 Explain
+                          </button>
+                          <a
+                            className="text-button"
+                            href={api.getInvoicePdfUrl(inv.id)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download={`Invoice-${inv.invoice_number}.pdf`}
+                            style={{ textDecoration: "none" }}
+                          >
+                            ⬇ PDF
+                          </a>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -210,13 +241,51 @@ function CustomerDashboardContent({ summary }: { summary: CustomerDashboardSumma
           )}
         </Panel>
       </section>
+
+      <ExplainBillModal
+        invoiceId={explainingInvoiceId}
+        onClose={() => setExplainingInvoiceId(null)}
+      />
     </div>
   );
 }
 
-function AdminDashboardContent({ summary }: { summary: DashboardSummary }) {
+function AdminDashboardContent({
+  summary,
+  leakageSummary,
+}: {
+  summary: DashboardSummary;
+  leakageSummary: LeakageSummary | null;
+}) {
   return (
     <div className="page-stack">
+      {/* Financial Intelligence Alert Strip */}
+      {leakageSummary && leakageSummary.total_open_alerts > 0 && (
+        <div style={{
+          background: "rgba(239, 68, 68, 0.12)",
+          border: "1px solid #ef4444",
+          borderRadius: "8px",
+          padding: "14px 20px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "10px"
+        }}>
+          <div>
+            <strong style={{ color: "#fca5a5", fontSize: "14px" }}>
+              ⚠️ {leakageSummary.total_open_alerts} Revenue Leakage Alert{leakageSummary.total_open_alerts > 1 ? "s" : ""} Flagged
+            </strong>
+            <div style={{ color: "#cbd5e1", fontSize: "12px", marginTop: "2px" }}>
+              Potential revenue at risk: <strong>{formatCurrency(leakageSummary.total_amount_at_risk)}</strong> ({leakageSummary.critical_alerts_count} critical)
+            </div>
+          </div>
+          <Link className="button" style={{ backgroundColor: "#dc2626", fontSize: "12px", padding: "6px 12px" }} to="/intelligence">
+            Audit Leakages →
+          </Link>
+        </div>
+      )}
+
       <section className="metric-grid">
         <MetricCard
           label="Active subscriptions"
@@ -239,6 +308,7 @@ function AdminDashboardContent({ summary }: { summary: DashboardSummary }) {
           hint={`${formatCurrency(summary.overdue_invoices_amount)} overdue`}
         />
       </section>
+
       <section className="dashboard-grid">
         <Panel>
           <div className="panel-heading">

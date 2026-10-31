@@ -6,14 +6,20 @@ import type {
   CustomerInput,
   DashboardSummary,
   Invoice,
+  InvoiceExplanation,
   InvoiceGenerationInput,
+  LeakageAlert,
+  LeakageSummary,
   Payment,
   PaymentInput,
   Plan,
   PlanInput,
+  PlanSimulatorOption,
   Product,
   ProductInput,
   ProductVariant,
+  SimulatorRequest,
+  SimulatorResponse,
   Subscription,
   SubscriptionInput,
   TokenResponse,
@@ -53,4 +59,24 @@ export const api = {
     return `/api/invoices/${invoiceId}/pdf${token ? `?token=${encodeURIComponent(token)}` : ""}`;
   },
   recordPayment: (invoiceId: number, input: PaymentInput) => request<Payment>(`/invoices/${invoiceId}/payments`, body(input)),
+
+  // Financial Intelligence (PROTECT, PREDICT, EXPLAIN)
+  listLeakageAlerts: (status?: string, severity?: string) => {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    if (severity) params.set("severity", severity);
+    const qs = params.toString();
+    return request<LeakageAlert[]>(`/intelligence/alerts${qs ? `?${qs}` : ""}`);
+  },
+  scanLeakageAlerts: () => request<LeakageAlert[]>("/intelligence/alerts/scan", { method: "POST" }),
+  updateLeakageAlert: (alertId: number, update: { status: string; resolution_notes?: string }) =>
+    request<LeakageAlert>(`/intelligence/alerts/${alertId}`, {
+      method: "PATCH",
+      body: JSON.stringify(update),
+    }),
+  getLeakageSummary: () => request<LeakageSummary>("/intelligence/alerts/summary"),
+  getSimulatorPlans: () => request<PlanSimulatorOption[]>("/intelligence/simulator/plans"),
+  calculateSimulation: (input: SimulatorRequest) =>
+    request<SimulatorResponse>("/intelligence/simulator/calculate", body(input)),
+  explainInvoice: (invoiceId: number) => request<InvoiceExplanation>(`/invoices/${invoiceId}/explain`),
 };

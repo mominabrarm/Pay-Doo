@@ -263,3 +263,138 @@ export interface TokenResponse {
   token_type: string;
   user: AuthUser;
 }
+
+// ==========================================
+// Financial Intelligence Types (PROTECT, PREDICT, EXPLAIN)
+// ==========================================
+
+export type LeakageAlertSeverity = "critical" | "high" | "medium" | "low";
+export type LeakageAlertStatus = "open" | "acknowledged" | "resolved" | "false_positive";
+
+export interface LeakageAlert {
+  id: number;
+  rule_code: string;
+  alert_key: string;
+  title: string;
+  description: string;
+  severity: LeakageAlertSeverity;
+  customer_id: number;
+  customer_name?: string;
+  subscription_id?: number;
+  subscription_number?: string;
+  invoice_id?: number;
+  invoice_number?: string;
+  amount_at_risk: Money;
+  evidence: string;
+  recommended_action: string;
+  status: LeakageAlertStatus;
+  resolution_notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LeakageSummary {
+  total_open_alerts: number;
+  critical_alerts_count: number;
+  total_amount_at_risk: Money;
+  resolved_alerts_count: number;
+  alerts_by_severity: Record<string, number>;
+}
+
+export interface PlanSimulatorOption {
+  id: number;
+  name: string;
+  code: string;
+  current_price: Money;
+  billing_interval: string;
+  active_subscribers_count: number;
+  current_monthly_revenue: Money;
+  current_annualized_revenue: Money;
+}
+
+export interface SimulatorRequest {
+  plan_id?: number;
+  proposed_price?: Money;
+  discount_percentage?: Money;
+  billing_interval?: string;
+  target_customer_count?: number;
+}
+
+export interface SimulatorResponse {
+  plan_id?: number;
+  plan_name?: string;
+  billing_interval: string;
+  current_price: Money;
+  proposed_price: Money;
+  discount_percentage: Money;
+  effective_proposed_price: Money;
+  affected_subscriptions_count: number;
+  current_monthly_revenue: Money;
+  proposed_monthly_revenue: Money;
+  monthly_difference: Money;
+  current_annualized_revenue: Money;
+  proposed_annualized_revenue: Money;
+  annualized_difference: Money;
+  percentage_change: Money;
+  is_positive_impact: boolean;
+  disclaimer: string;
+}
+
+export interface InvoiceLineExplanation {
+  id: number;
+  description: string;
+  quantity: number;
+  unit_price: Money;
+  tax_rate: Money;
+  tax_amount: Money;
+  discount_amount: Money;
+  subtotal: Money;
+  total_amount: Money;
+}
+
+export interface InvoiceComparisonItem {
+  metric_name: string;
+  current_value: Money;
+  previous_value: Money;
+  difference: Money;
+  percentage_change?: Money;
+  explanation: string;
+}
+
+export interface InvoiceExplanation {
+  invoice_id: number;
+  invoice_number: string;
+  customer_id: number;
+  customer_name: string;
+  subscription_id: number;
+  subscription_number: string;
+  plan_name: string;
+  billing_interval: string;
+  billing_period_start: string;
+  billing_period_end: string;
+  billing_period_days: number;
+  issue_date: string;
+  due_date: string;
+  status: InvoiceStatus;
+  subtotal: Money;
+  discount_amount: Money;
+  tax_amount: Money;
+  total_amount: Money;
+  amount_paid: Money;
+  outstanding_balance: Money;
+  lines: InvoiceLineExplanation[];
+  payments: Array<{
+    id: number;
+    payment_number: string;
+    amount: Money;
+    payment_method: string;
+    payment_date: string;
+  }>;
+  friendly_summary: string;
+  has_previous_invoice: boolean;
+  previous_invoice_id?: number;
+  previous_invoice_number?: string;
+  previous_invoice_total?: Money;
+  comparison_metrics: InvoiceComparisonItem[];
+  comparison_summary?: string;
+}

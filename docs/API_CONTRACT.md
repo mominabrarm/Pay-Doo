@@ -327,3 +327,160 @@ Monetary values are serialized as `Decimal` strings or two-decimal numbers (e.g.
 ### 2.9 Finance Lead KPI Dashboard
 - **`GET /api/dashboard/summary`**
   - **Response `200 OK`:** Aggregated counts and totals across active subscriptions, revenue, receivables, and overdue invoices.
+
+
+---
+
+### 2.10 Financial Intelligence (Protect, Predict, Explain)
+
+#### 2.10.1 Revenue Leakage Detection (PROTECT)
+- **`GET /api/intelligence/alerts`**
+  - **Query Params:** `status` (`open`, `acknowledged`, `resolved`, `false_positive`), `severity` (`critical`, `high`, `medium`, `low`), `customer_id`, `skip`, `limit`.
+  - **Permissions:** Admin and Staff can list all alerts. Customer accounts receive strictly their own scoped alerts.
+  - **Response `200 OK`:** Array of `LeakageAlertResponse` objects containing title, description, severity, rule code, evidence, amount at risk, and recommended action.
+
+- **`POST /api/intelligence/alerts/scan`**
+  - **Permissions:** Admin and Staff only (`403 Forbidden` for customers).
+  - **Description:** Triggers deterministic scan across database records checking 6 core leakage rules:
+    1. Cancelled subscription billed again (`CANCELLED_SUB_BILLED`)
+    2. Expired subscription receiving invoice (`EXPIRED_SUB_BILLED`)
+    3. Duplicate invoice for same subscription & period (`DUPLICATE_INVOICE_PERIOD`)
+    4. Payment recorded with unreconciled ledger (`PAYMENT_UNRECONCILED`)
+    5. Discount applied outside validity window (`DISCOUNT_INVALID_PERIOD`)
+    6. Invoice totals mathematically inconsistent with line items (`INVOICE_AMOUNT_INCONSISTENCY`)
+  - **Response `200 OK`:** Array of open and newly detected alert items.
+
+- **`PATCH /api/intelligence/alerts/{id}`**
+  - **Permissions:** Admin and Staff only.
+  - **Request Body:**
+    ```json
+    {
+      "status": "resolved",
+      "resolution_notes": "Correction credit issued and reconciled with customer."
+    }
+    ```
+  - **Response `200 OK`:** Updated alert record with updated timestamp and resolution notes.
+
+- **`GET /api/intelligence/alerts/summary`**
+  - **Response `200 OK`:**
+    ```json
+    {
+      "total_open_alerts": 2,
+      "critical_alerts_count": 1,
+      "total_amount_at_risk": "472.00",
+      "resolved_alerts_count": 3,
+      "alerts_by_severity": {
+        "critical": 1,
+        "high": 1,
+        "medium": 0,
+        "low": 0
+      }
+    }
+    ```
+
+#### 2.10.2 Subscription Impact Simulator (PREDICT)
+- **`GET /api/intelligence/simulator/plans`**
+  - **Permissions:** Admin and Staff.
+  - **Response `200 OK`:** Array of plans with baseline prices, active subscriber counts, and current monthly/annualized run-rates.
+
+- **`POST /api/intelligence/simulator/calculate`**
+  - **Permissions:** Admin and Staff.
+  - **Request Body:**
+    ```json
+    {
+      "plan_id": 1,
+      "proposed_price": "1000.00",
+      "discount_percentage": "15.00",
+      "billing_interval": "monthly",
+      "target_customer_count": 25
+    }
+    ```
+  - **Response `200 OK`:**
+    ```json
+    {
+      "plan_id": 1,
+      "plan_name": "Pro SaaS",
+      "billing_interval": "monthly",
+      "current_price": "1000.00",
+      "proposed_price": "1000.00",
+      "discount_percentage": "15.00",
+      "effective_proposed_price": "850.00",
+      "affected_subscriptions_count": 25,
+      "current_monthly_revenue": "25000.00",
+      "proposed_monthly_revenue": "21250.00",
+      "monthly_difference": "-3750.00",
+      "current_annualized_revenue": "300000.00",
+      "proposed_annualized_revenue": "255000.00",
+      "annualized_difference": "-45000.00",
+      "percentage_change": "-15.00",
+      "is_positive_impact": false,
+      "disclaimer": "Scenario simulation only. This calculation uses Python Decimal precision against persisted plan intervals and does not modify production subscriptions, plan rates, or billing records."
+    }
+    ```
+
+#### 2.10.3 Billing Explainability (EXPLAIN)
+- **`GET /api/invoices/{id}/explain`** (also accessible at `/api/intelligence/invoices/{id}/explain`)
+  - **Permissions:** Authenticated users. Customers can strictly explain only their own invoices (`403 Forbidden` for other customers' invoices).
+  - **Response `200 OK`:**
+    ```json
+    {
+      "invoice_id": 12,
+      "invoice_number": "INV-2026-0012",
+      "customer_id": 4,
+      "customer_name": "Acme Corp",
+      "subscription_id": 3,
+      "subscription_number": "SUB-2026-9A1F2C",
+      "plan_name": "Pro SaaS",
+      "billing_interval": "monthly",
+      "billing_period_start": "2026-02-01",
+      "billing_period_end": "2026-02-28",
+      "billing_period_days": 28,
+      "issue_date": "2026-02-01",
+      "due_date": "2026-02-15",
+      "status": "confirmed",
+      "subtotal": "5000.00",
+      "discount_amount": "0.00",
+      "tax_amount": "900.00",
+      "total_amount": "5900.00",
+      "amount_paid": "2000.00",
+      "outstanding_balance": "3900.00",
+      "lines": [
+        {
+          "id": 18,
+          "description": "Cloud Pro Instance",
+          "quantity": 1,
+          "unit_price": "5000.00",
+          "tax_rate": "18.00",
+          "tax_amount": "900.00",
+          "discount_amount": "0.00",
+          "subtotal": "5000.00",
+          "total_amount": "5900.00"
+        }
+      ],
+      "payments": [
+        {
+          "id": 5,
+          "payment_number": "PAY-2026-8B2A",
+          "amount": 2000.0,
+          "payment_method": "Bank Transfer",
+          "payment_date": "2026-02-05"
+        }
+      ],
+      "friendly_summary": "Invoice INV-2026-0012 is ₹5,900.00.\n• Base service subtotal: ₹5,000.00\n• Taxes applied: +₹900.00\n• Total invoice charge: ₹5,900.00\n• Payments credited: ₹2,000.00\n• Remaining balance: ₹3,900.00",
+      "has_previous_invoice": true,
+      "previous_invoice_id": 8,
+      "previous_invoice_number": "INV-2026-0008",
+      "previous_invoice_total": "5900.00",
+      "comparison_metrics": [
+        {
+          "metric_name": "Total Invoice Amount",
+          "current_value": "5900.00",
+          "previous_value": "5900.00",
+          "difference": "0.00",
+          "percentage_change": "0.00",
+          "explanation": "Total bill amount is identical to previous billing cycle."
+        }
+      ],
+      "comparison_summary": "Your invoice total is identical to previous invoice INV-2026-0008 (₹5,900.00)."
+    }
+    ```

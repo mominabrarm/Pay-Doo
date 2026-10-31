@@ -14,6 +14,7 @@ from app.routers import (
     subscriptions,
     invoices,
     dashboard,
+    intelligence,
 )
 
 Base.metadata.create_all(bind=engine)
@@ -55,6 +56,7 @@ app.include_router(discounts.router, prefix=settings.API_V1_PREFIX)
 app.include_router(subscriptions.router, prefix=settings.API_V1_PREFIX)
 app.include_router(invoices.router, prefix=settings.API_V1_PREFIX)
 app.include_router(dashboard.router, prefix=settings.API_V1_PREFIX)
+app.include_router(intelligence.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/")

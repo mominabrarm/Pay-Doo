@@ -10,6 +10,7 @@ import { PaymentsPage } from "./pages/PaymentsPage";
 import { PlansPage } from "./pages/PlansPage";
 import { ProductsPage } from "./pages/ProductsPage";
 import { SubscriptionsPage } from "./pages/SubscriptionsPage";
+import { IntelligencePage } from "./pages/IntelligencePage";
 import { getStoredUser } from "./api/client";
 import type { AuthUser, UserRole } from "./api/types";
 
@@ -38,6 +39,14 @@ export const router = createBrowserRouter([
     element: <AppShell />,
     children: [
       { path: "dashboard", element: <DashboardPage /> },
+      {
+        path: "intelligence",
+        element: (
+          <RoleGuard allowedRoles={["admin", "staff"]}>
+            <IntelligencePage />
+          </RoleGuard>
+        ),
+      },
       {
         path: "customers",
         element: (

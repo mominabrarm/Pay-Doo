@@ -7,6 +7,7 @@ from app.models.subscription import Subscription, SubscriptionLine
 from app.models.invoice import Invoice, InvoiceLine
 from app.models.payment import Payment
 from app.models.user import User
+from app.models.leakage_alert import RevenueLeakageAlert
 
 __all__ = [
     "TimestampMixin",
@@ -21,4 +22,5 @@ __all__ = [
     "InvoiceLine",
     "Payment",
     "User",
+    "RevenueLeakageAlert",
 ]

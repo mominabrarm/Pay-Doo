@@ -10,9 +10,11 @@ from app.models.subscription import Subscription
 from app.models.user import User
 from app.schemas.invoice import InvoiceResponse
 from app.schemas.payment import PaymentCreate, PaymentResponse
+from app.schemas.intelligence import InvoiceExplanationResponse
 from app.services.billing import generate_subscription_invoice
 from app.services.payment import record_invoice_payment
 from app.services.pdf import generate_invoice_pdf
+from app.services.explain import explain_invoice_bill
 from app.services.auth import (
     get_current_user,
     get_optional_current_user,
@@ -96,6 +98,18 @@ def get_invoice(
             )
 
     return invoice
+
+
+@router.get("/{invoice_id}/explain", response_model=InvoiceExplanationResponse)
+def explain_invoice_endpoint(
+    invoice_id: int,
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    req_customer_id = None
+    if current_user and current_user.role == "customer":
+        req_customer_id = current_user.customer_id
+    return explain_invoice_bill(db, invoice_id, requesting_customer_id=req_customer_id)
 
 
 @router.get("/{invoice_id}/pdf")
