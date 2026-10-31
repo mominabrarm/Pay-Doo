@@ -58,6 +58,8 @@ function initialForm(): SubscriptionForm {
   };
 }
 
+const EMPTY_COLLECTION = async () => [];
+
 export function SubscriptionsPage() {
   const context = useOutletContext<{ currentUser: AuthUser | null } | undefined>();
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(context?.currentUser ?? getStoredUser<AuthUser>());
@@ -70,16 +72,16 @@ export function SubscriptionsPage() {
 
   const isCustomer = currentUser?.role === "customer";
 
-  const customers = useCollection(isCustomer ? async () => [] : api.listCustomers);
-  const plans = useCollection(isCustomer ? async () => [] : api.listPlans);
-  const discounts = useCollection(isCustomer ? async () => [] : api.listDiscounts);
-  const products = useCollection(isCustomer ? async () => [] : api.listProducts);
+  const customers = useCollection(isCustomer ? EMPTY_COLLECTION : api.listCustomers);
+  const plans = useCollection(isCustomer ? EMPTY_COLLECTION : api.listPlans);
+  const discounts = useCollection(isCustomer ? EMPTY_COLLECTION : api.listDiscounts);
+  const products = useCollection(isCustomer ? EMPTY_COLLECTION : api.listProducts);
   const [subscriptionPage, setSubscriptionPage] = useState(0);
   const loadSubscriptions = useCallback(
     () => api.listSubscriptions(subscriptionPage * PAGE_SIZE, PAGE_SIZE),
     [subscriptionPage]
   );
-  const subscriptions = useCollection(loadSubscriptions);
+  const subscriptions = useCollection(loadSubscriptions, [subscriptionPage]);
 
   const [form, setForm] = useState(initialForm);
   const [submitting, setSubmitting] = useState(false);

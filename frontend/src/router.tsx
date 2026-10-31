@@ -84,6 +84,9 @@ export const router = createBrowserRouter([
       { path: "pricing", element: <PricingPlansPage /> },
       { path: "billing-history", element: <BillingHistoryPage /> },
       { path: "settings", element: <AccountSettingsPage /> },
+      { path: "account-settings", element: <Navigate to="/settings" replace /> },
+      { path: "my-subscriptions", element: <Navigate to="/subscriptions" replace /> },
+      { path: "my-invoices", element: <Navigate to="/invoices" replace /> },
       {
         path: "payments",
         element: (

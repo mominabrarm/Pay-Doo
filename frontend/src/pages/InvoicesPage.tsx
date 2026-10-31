@@ -20,6 +20,7 @@ import { billingPeriodEnd, formatCurrency, formatDate, today } from "../utils/fo
 
 const initialForm = { subscriptionId: "", periodStart: "", periodEnd: "", dueDate: today() };
 const PAGE_SIZE = 50;
+const EMPTY_COLLECTION = async () => [];
 
 export function InvoicesPage() {
   const context = useOutletContext<{ currentUser: AuthUser | null } | undefined>();
@@ -33,10 +34,10 @@ export function InvoicesPage() {
 
   const isCustomer = currentUser?.role === "customer";
 
-  const subscriptions = useCollection(isCustomer ? async () => [] : api.listSubscriptions);
+  const subscriptions = useCollection(isCustomer ? EMPTY_COLLECTION : api.listSubscriptions);
   const [page, setPage] = useState(0);
   const loadInvoices = useCallback(() => api.listInvoices(page * PAGE_SIZE, PAGE_SIZE), [page]);
-  const invoices = useCollection(loadInvoices);
+  const invoices = useCollection(loadInvoices, [page]);
   const [form, setForm] = useState(initialForm);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
