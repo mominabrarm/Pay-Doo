@@ -43,10 +43,18 @@ def customer_dashboard_summary(
     # Customers can strictly access only their own customer dashboard
     if current_user.role == "customer":
         if not current_user.customer_id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No customer profile associated with this account.",
-            )
+            cust = db.query(Customer).filter(Customer.email == current_user.email).first()
+            if not cust:
+                cust = Customer(
+                    name=current_user.full_name or current_user.email.split("@")[0].title(),
+                    email=current_user.email,
+                    is_active=True,
+                )
+                db.add(cust)
+                db.flush()
+            current_user.customer_id = cust.id
+            db.commit()
+            db.refresh(current_user)
         target_customer_id = current_user.customer_id
     else:
         # Admin or staff can query a specific customer's portal view

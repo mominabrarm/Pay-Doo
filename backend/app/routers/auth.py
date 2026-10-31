@@ -55,6 +55,7 @@ def register_user(
                     detail="Only an administrator can create staff or admin accounts.",
                 )
 
+    target_customer_id = payload.customer_id
     if payload.customer_id:
         cust = db.query(Customer).filter(Customer.id == payload.customer_id).first()
         if not cust:
@@ -62,6 +63,21 @@ def register_user(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Customer with ID {payload.customer_id} does not exist.",
             )
+    elif payload.role == "customer":
+        # Look up existing customer by email
+        existing_cust = db.query(Customer).filter(Customer.email == payload.email).first()
+        if existing_cust:
+            target_customer_id = existing_cust.id
+        else:
+            # Auto-provision CRM customer record for the new customer account
+            new_cust = Customer(
+                name=payload.full_name or payload.email.split("@")[0].title(),
+                email=payload.email,
+                is_active=True,
+            )
+            db.add(new_cust)
+            db.flush()
+            target_customer_id = new_cust.id
 
     user = User(
         email=payload.email,
@@ -69,7 +85,7 @@ def register_user(
         full_name=payload.full_name,
         role=payload.role,
         is_active=True,
-        customer_id=payload.customer_id,
+        customer_id=target_customer_id,
     )
     db.add(user)
     db.commit()
@@ -93,6 +109,21 @@ def login(payload: UserLoginRequest, db: Session = Depends(get_db)):
             detail="Account is inactive. Please contact your administrator.",
         )
 
+    # Auto-link customer profile if role is customer and customer_id is None
+    if user.role == "customer" and not user.customer_id:
+        cust = db.query(Customer).filter(Customer.email == user.email).first()
+        if not cust:
+            cust = Customer(
+                name=user.full_name or user.email.split("@")[0].title(),
+                email=user.email,
+                is_active=True,
+            )
+            db.add(cust)
+            db.flush()
+        user.customer_id = cust.id
+        db.commit()
+        db.refresh(user)
+
     token = create_access_token(
         data={
             "sub": str(user.id),
@@ -110,7 +141,23 @@ def login(payload: UserLoginRequest, db: Session = Depends(get_db)):
 
 
 @router.get("/me", response_model=UserResponse)
-def get_current_account(current_user: User = Depends(get_current_user)):
+def get_current_account(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if current_user.role == "customer" and not current_user.customer_id:
+        cust = db.query(Customer).filter(Customer.email == current_user.email).first()
+        if not cust:
+            cust = Customer(
+                name=current_user.full_name or current_user.email.split("@")[0].title(),
+                email=current_user.email,
+                is_active=True,
+            )
+            db.add(cust)
+            db.flush()
+        current_user.customer_id = cust.id
+        db.commit()
+        db.refresh(current_user)
     return current_user
 
 

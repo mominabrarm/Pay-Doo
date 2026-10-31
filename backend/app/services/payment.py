@@ -33,6 +33,11 @@ def record_invoice_payment(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot record payment on a cancelled invoice.",
         )
+    if invoice.status == "draft":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot record payment on a draft invoice. Confirm invoice first.",
+        )
 
     if payment_method not in VALID_PAYMENT_METHODS:
         raise HTTPException(
@@ -42,6 +47,23 @@ def record_invoice_payment(
 
     payment_amount = round_currency(amount)
     current_outstanding = round_currency(Decimal(str(invoice.outstanding_balance)))
+
+    if notes and notes.strip():
+        existing_dup = (
+            db.query(Payment)
+            .filter(
+                Payment.invoice_id == invoice.id,
+                Payment.notes == notes.strip(),
+                Payment.amount == payment_amount,
+                Payment.status == "success",
+            )
+            .first()
+        )
+        if existing_dup:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Duplicate payment detected: payment with reference '{notes.strip()}' already recorded.",
+            )
 
     if payment_amount <= Decimal("0.00"):
         raise HTTPException(

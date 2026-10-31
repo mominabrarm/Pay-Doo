@@ -1,3 +1,4 @@
+import calendar
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import List, Optional
@@ -22,6 +23,21 @@ from app.services.auth import (
 router = APIRouter(prefix="/invoices", tags=["Invoices"])
 
 
+def add_months(sourcedate: date, months: int) -> date:
+    month = sourcedate.month - 1 + months
+    year = sourcedate.year + month // 12
+    month = month % 12 + 1
+    day = min(sourcedate.day, calendar.monthrange(year, month)[1])
+    return date(year, month, day)
+
+
+def add_years(sourcedate: date, years: int) -> date:
+    try:
+        return sourcedate.replace(year=sourcedate.year + years)
+    except ValueError:
+        return date(sourcedate.year + years, 2, 28)
+
+
 @router.get("", response_model=List[InvoiceResponse])
 def list_invoices(
     customer_id: Optional[int] = None,
@@ -36,6 +52,12 @@ def list_invoices(
 
     # Enforce customer-level isolation
     if current_user and current_user.role == "customer":
+        if not current_user.customer_id:
+            cust = db.query(Customer).filter(Customer.email == current_user.email).first()
+            if cust:
+                current_user.customer_id = cust.id
+                db.commit()
+                db.refresh(current_user)
         query = query.filter(Invoice.customer_id == current_user.customer_id)
     elif customer_id:
         query = query.filter(Invoice.customer_id == customer_id)
@@ -203,12 +225,11 @@ def run_automated_billing_cycle(
             p_end = p_start + timedelta(days=6)
             next_date = p_start + timedelta(days=7)
         elif interval == "yearly":
-            p_end = p_start.replace(year=p_start.year + 1) - timedelta(days=1)
-            next_date = p_start.replace(year=p_start.year + 1)
+            next_date = add_years(p_start, 1)
+            p_end = next_date - timedelta(days=1)
         else:  # monthly
-            next_month = p_start.replace(day=28) + timedelta(days=4)
-            p_end = next_month.replace(day=1) - timedelta(days=1)
-            next_date = next_month.replace(day=1)
+            next_date = add_months(p_start, 1)
+            p_end = next_date - timedelta(days=1)
 
         try:
             inv = generate_subscription_invoice(

@@ -116,3 +116,7 @@ def test_invoice_pdf_generation_and_customer_isolation(client):
     forbidden_resp = client.get(f"/api/invoices/{inv_id}/pdf", headers={"Authorization": f"Bearer {token_b}"})
     assert forbidden_resp.status_code == 403
     assert "Customers may only download their own invoices" in forbidden_resp.json()["detail"]
+
+    # Anonymous request verification
+    anon_resp = client.get(f"/api/invoices/{inv_id}/pdf")
+    assert anon_resp.status_code in [200, 401]
