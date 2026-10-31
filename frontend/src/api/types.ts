@@ -433,3 +433,44 @@ export interface ProfileUpdateInput {
   city?: string;
   country?: string;
 }
+
+export type NotificationChannel = "email" | "whatsapp";
+export type NotificationStatus = "pending" | "sent" | "delivered" | "failed" | "skipped_no_credentials" | "skipped_preference";
+
+export interface NotificationLog {
+  id: number;
+  customer_id: number;
+  invoice_id?: number | null;
+  payment_id?: number | null;
+  channel: NotificationChannel;
+  notification_type: string;
+  provider: string;
+  recipient: string;
+  subject?: string | null;
+  message_preview?: string | null;
+  provider_message_id?: string | null;
+  status: NotificationStatus;
+  attempt_count: number;
+  error_message?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+}
+
+export interface NotificationPreferenceResponse {
+  customer_id: number;
+  notify_email: boolean;
+  notify_whatsapp: boolean;
+  whatsapp_number?: string | null;
+}
+
+export interface NotificationPreferenceUpdate {
+  notify_email?: boolean;
+  notify_whatsapp?: boolean;
+  whatsapp_number?: string | null;
+}
+
+export interface SendNotificationRequest {
+  channel?: "email" | "whatsapp" | "all";
+  force_resend?: boolean;
+}
+

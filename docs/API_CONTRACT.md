@@ -484,3 +484,37 @@ Monetary values are serialized as `Decimal` strings or two-decimal numbers (e.g.
       "comparison_summary": "Your invoice total is identical to previous invoice INV-2026-0008 (₹5,900.00)."
     }
     ```
+
+---
+
+### 2.11 Notifications & Messaging API (Resend Email & Twilio WhatsApp)
+
+#### 2.11.1 List Notification Logs
+- **`GET /api/notifications`**
+  - **Query Params:** `invoice_id`, `customer_id`, `channel` (`email` / `whatsapp`), `status` (`sent`, `delivered`, `failed`, `skipped_no_credentials`, `skipped_preference`), `skip`, `limit`
+  - **Permissions:** Customer role is strictly isolated to own notifications; Admin/Staff can query all records.
+  - **Response `200 OK`:** Array of `NotificationLogResponse` objects.
+
+#### 2.11.2 Trigger / Resend Invoice Notifications
+- **`POST /api/notifications/invoices/{invoice_id}/send`**
+  - **Permissions:** Customer (for their own invoices) or Admin/Staff (any invoice).
+  - **Request Body:**
+    ```json
+    {
+      "channel": "all",
+      "force_resend": true
+    }
+    ```
+    *(channel: `"email"`, `"whatsapp"`, or `"all"`)*
+  - **Response `200 OK`:** List of `NotificationLogResponse` objects dispatched or logged.
+
+#### 2.11.3 Notification Channel Preferences
+- **`GET /api/notifications/preferences`**
+  - **Response `200 OK`:** `{ "customer_id": 2, "notify_email": true, "notify_whatsapp": true, "whatsapp_number": "+919876543210" }`
+- **`PUT /api/notifications/preferences`**
+  - **Request Body:** `{ "notify_email": true, "notify_whatsapp": true, "whatsapp_number": "+919876543210" }`
+  - **Response `200 OK`:** Updated preferences object.
+
+#### 2.11.4 Cryptographically Signed Invoice PDF Download
+- **`GET /api/invoices/{id}/pdf?token={download_token}`**
+  - **Security:** Verified with HMAC-SHA256 signature containing `purpose: "invoice_download"`, `invoice_id`, `customer_id`, and 72-hour expiration window. Mismatched or expired tokens are rejected with `403 Forbidden`. Enables seamless, secure one-click downloads from WhatsApp & Email notifications without exposing user credentials or long-lived session tokens.

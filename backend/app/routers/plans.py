@@ -1,15 +1,27 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.plan import SubscriptionPlan
+from app.models.user import User
 from app.schemas.plan import SubscriptionPlanCreate, SubscriptionPlanResponse
+from app.services.auth import get_optional_current_user
 
 router = APIRouter(prefix="/plans", tags=["Subscription Plans"])
 
 
 @router.post("", response_model=SubscriptionPlanResponse, status_code=status.HTTP_201_CREATED)
-def create_plan(payload: SubscriptionPlanCreate, db: Session = Depends(get_db)):
+def create_plan(
+    payload: SubscriptionPlanCreate,
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    if current_user and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Operation not permitted for role '{current_user.role}'. Required role: admin",
+        )
+
     existing = db.query(SubscriptionPlan).filter(SubscriptionPlan.code == payload.code).first()
     if existing:
         raise HTTPException(

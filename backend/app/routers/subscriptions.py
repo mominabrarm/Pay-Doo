@@ -148,7 +148,12 @@ def customer_subscribe(
     unit_price = Decimal(str(product.sales_price)) + price_extra
     tax_rate = Decimal("18.00")
 
-    sub_start = payload.start_date or date.today()
+    # Provider-defined terms:
+    # Start date is governed by provider's plan start date if in future, else today (or valid requested start)
+    sub_start = plan.start_date if (plan.start_date and plan.start_date > date.today()) else (payload.start_date or date.today())
+    # Expiry date is governed by plan's fixed term end date (if defined), otherwise None (ongoing subscription)
+    sub_expiry = plan.end_date
+
     unique_suffix = uuid.uuid4().hex[:6].upper()
     sub_number = f"SUB-{sub_start.year}-{unique_suffix}"
 
@@ -158,6 +163,7 @@ def customer_subscribe(
         plan_id=plan.id,
         status="active",
         start_date=sub_start,
+        expiry_date=sub_expiry,
         next_billing_date=sub_start,
         payment_terms=payload.payment_terms,
     )
@@ -193,13 +199,18 @@ def customer_subscribe(
         else:
             period_end = add_months(sub_start, 1) - timedelta(days=1)
 
-        generate_subscription_invoice(
+        inv = generate_subscription_invoice(
             db=db,
             subscription_id=subscription.id,
             period_start=sub_start,
             period_end=period_end,
             due_date=sub_start + timedelta(days=15),
         )
+        try:
+            from app.services.notification import dispatch_invoice_notifications
+            dispatch_invoice_notifications(db, inv)
+        except Exception:
+            pass
     except Exception:
         pass
 
@@ -315,10 +326,16 @@ def generate_invoice(
             detail="Access denied: Customers cannot generate invoices manually.",
         )
 
-    return generate_subscription_invoice(
+    inv = generate_subscription_invoice(
         db=db,
         subscription_id=subscription_id,
         period_start=payload.billing_period_start,
         period_end=payload.billing_period_end,
         due_date=payload.due_date,
     )
+    try:
+        from app.services.notification import dispatch_invoice_notifications
+        dispatch_invoice_notifications(db, inv)
+    except Exception:
+        pass
+    return inv

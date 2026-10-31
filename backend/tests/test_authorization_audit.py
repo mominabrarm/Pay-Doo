@@ -238,7 +238,7 @@ def test_admin_only_operations_lack_backend_role_guards(client):
     ).json()["access_token"]
 
     # 1. Discount rule creation: Problem statement specifies ONLY admin can create discounts.
-    # Currently, POST /api/discounts has no auth guard, so staff can invoke it:
+    # Staff calling POST /api/discounts receives 403 Forbidden:
     staff_disc_resp = client.post(
         "/api/discounts",
         json={
@@ -249,10 +249,39 @@ def test_admin_only_operations_lack_backend_role_guards(client):
         },
         headers={"Authorization": f"Bearer {staff_token}"},
     )
-    assert staff_disc_resp.status_code == 201
+    assert staff_disc_resp.status_code == 403
+
+    # Admin calling POST /api/discounts succeeds:
+    admin_disc_resp = client.post(
+        "/api/discounts",
+        json={
+            "name": "Admin Discount",
+            "code": "DISC-ADMIN",
+            "discount_type": "percentage",
+            "value": "50.00",
+        },
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert admin_disc_resp.status_code == 201
+
+    # Staff calling POST /api/products receives 403 Forbidden:
+    staff_prod_resp = client.post(
+        "/api/products",
+        json={"name": "Staff Prod", "code": "P-STAFF", "sales_price": "100.00", "cost_price": "20.00"},
+        headers={"Authorization": f"Bearer {staff_token}"},
+    )
+    assert staff_prod_resp.status_code == 403
+
+    # Staff calling POST /api/plans receives 403 Forbidden:
+    staff_plan_resp = client.post(
+        "/api/plans",
+        json={"name": "Staff Plan", "code": "PLAN-STAFF", "billing_interval": "monthly", "price": "100.00"},
+        headers={"Authorization": f"Bearer {staff_token}"},
+    )
+    assert staff_plan_resp.status_code == 403
 
     # 2. Automated batch billing cycle:
-    # Currently, POST /api/invoices/run-billing-cycle has no auth guard:
+    # Staff can invoke operational billing cycles:
     staff_billing_resp = client.post(
         "/api/invoices/run-billing-cycle",
         headers={"Authorization": f"Bearer {staff_token}"},
@@ -375,3 +404,65 @@ def test_dashboard_role_segregation(client, db_session):
 
     bill_cycle = client.post("/api/invoices/run-billing-cycle", headers={"Authorization": f"Bearer {cust1_token}"})
     assert bill_cycle.status_code == 403
+
+    # CHECK 11: Customer cannot access revenue leakage alerts or summary
+    cust_leak = client.get("/api/intelligence/alerts", headers={"Authorization": f"Bearer {cust1_token}"})
+    assert cust_leak.status_code == 403
+    assert "Revenue leakage detection is an administrative tool" in cust_leak.json()["detail"]
+
+    cust_leak_sum = client.get("/api/intelligence/alerts/summary", headers={"Authorization": f"Bearer {cust1_token}"})
+    assert cust_leak_sum.status_code == 403
+    assert "Revenue leakage detection is an administrative tool" in cust_leak_sum.json()["detail"]
+
+    # CHECK 12: Customer cannot list all customers or create customers
+    cust_list = client.get("/api/customers", headers={"Authorization": f"Bearer {cust1_token}"})
+    assert cust_list.status_code == 403
+    assert "Customers are not permitted to list all customer records" in cust_list.json()["detail"]
+
+    cust_create = client.post(
+        "/api/customers",
+        json={"name": "Hacked Customer", "email": "hacked@test.com"},
+        headers={"Authorization": f"Bearer {cust1_token}"},
+    )
+    assert cust_create.status_code == 403
+    assert "Customers cannot create other customer records" in cust_create.json()["detail"]
+
+    # CHECK 13: Customer cannot view another customer's record
+    other_cust = client.get(f"/api/customers/{c2['id']}", headers={"Authorization": f"Bearer {cust1_token}"})
+    assert other_cust.status_code == 403
+    assert "Customers may only view their own customer record" in other_cust.json()["detail"]
+
+    # CHECK 14: Customer CAN view their own customer record
+    own_cust = client.get(f"/api/customers/{c1['id']}", headers={"Authorization": f"Bearer {cust1_token}"})
+    assert own_cust.status_code == 200
+    assert own_cust.json()["id"] == c1["id"]
+
+    # CHECK 15: Staff cannot create product, variant, plan, or discount (admin only)
+    staff_p = client.post(
+        "/api/products",
+        json={"name": "Staff P", "code": "STAFF-P-DENIED", "sales_price": "100.00", "cost_price": "10.00"},
+        headers={"Authorization": f"Bearer {staff_token}"},
+    )
+    assert staff_p.status_code == 403
+
+    staff_pln = client.post(
+        "/api/plans",
+        json={"name": "Staff PLN", "code": "STAFF-PLN-DENIED", "billing_interval": "monthly", "price": "100.00"},
+        headers={"Authorization": f"Bearer {staff_token}"},
+    )
+    assert staff_pln.status_code == 403
+
+    # CHECK 16: Admin CAN create product, variant, plan, and discount
+    admin_p = client.post(
+        "/api/products",
+        json={"name": "Admin P", "code": "ADMIN-P-OK", "sales_price": "100.00", "cost_price": "10.00"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert admin_p.status_code == 201
+
+    admin_var = client.post(
+        f"/api/products/{admin_p.json()['id']}/variants",
+        json={"variant_name": "Pro Tier", "sku": "ADMIN-P-PRO", "price_extra": "50.00"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert admin_var.status_code == 201

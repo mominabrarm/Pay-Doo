@@ -12,6 +12,9 @@ import type {
   InvoiceGenerationInput,
   LeakageAlert,
   LeakageSummary,
+  NotificationLog,
+  NotificationPreferenceResponse,
+  NotificationPreferenceUpdate,
   Payment,
   PaymentInput,
   Plan,
@@ -21,6 +24,7 @@ import type {
   ProductInput,
   ProductVariant,
   ProfileUpdateInput,
+  SendNotificationRequest,
   SimulatorRequest,
   SimulatorResponse,
   Subscription,
@@ -91,4 +95,23 @@ export const api = {
   calculateSimulation: (input: SimulatorRequest) =>
     request<SimulatorResponse>("/intelligence/simulator/calculate", body(input)),
   explainInvoice: (invoiceId: number) => request<InvoiceExplanation>(`/invoices/${invoiceId}/explain`),
+
+  // Notifications
+  listNotifications: (params?: { invoice_id?: number; channel?: string; status?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.invoice_id) qs.set("invoice_id", String(params.invoice_id));
+    if (params?.channel) qs.set("channel", params.channel);
+    if (params?.status) qs.set("status", params.status);
+    const query = qs.toString();
+    return request<NotificationLog[]>(`/notifications${query ? `?${query}` : ""}`);
+  },
+  sendInvoiceNotification: (invoiceId: number, input?: SendNotificationRequest) =>
+    request<NotificationLog[]>(`/notifications/invoices/${invoiceId}/send`, body(input || { channel: "all", force_resend: true })),
+  getNotificationPreferences: (customerId?: number) =>
+    request<NotificationPreferenceResponse>(`/notifications/preferences${customerId ? `?customer_id=${customerId}` : ""}`),
+  updateNotificationPreferences: (input: NotificationPreferenceUpdate, customerId?: number) =>
+    request<NotificationPreferenceResponse>(`/notifications/preferences${customerId ? `?customer_id=${customerId}` : ""}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
 };

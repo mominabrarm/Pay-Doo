@@ -1,15 +1,27 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.discount import DiscountRule
+from app.models.user import User
 from app.schemas.discount import DiscountRuleCreate, DiscountRuleResponse
+from app.services.auth import get_optional_current_user
 
 router = APIRouter(prefix="/discounts", tags=["Discounts"])
 
 
 @router.post("", response_model=DiscountRuleResponse, status_code=status.HTTP_201_CREATED)
-def create_discount(payload: DiscountRuleCreate, db: Session = Depends(get_db)):
+def create_discount(
+    payload: DiscountRuleCreate,
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    if current_user and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Operation not permitted for role '{current_user.role}'. Required role: admin",
+        )
+
     existing = db.query(DiscountRule).filter(DiscountRule.code == payload.code).first()
     if existing:
         raise HTTPException(

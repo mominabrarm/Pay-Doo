@@ -171,21 +171,33 @@ def download_invoice_pdf(
     elif token:
         raw_token = token
 
-    current_user = None
-    if raw_token:
-        try:
-            payload = decode_access_token(raw_token)
-            user_id = payload.get("sub")
-            if user_id:
-                current_user = db.query(User).filter(User.id == int(user_id)).first()
-        except HTTPException:
-            pass
-
     invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
     if not invoice:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found.")
 
-    if current_user and current_user.role == "customer":
+    current_user = None
+    is_signed_invoice_token = False
+    if raw_token:
+        try:
+            payload = decode_access_token(raw_token)
+            if payload.get("purpose") == "invoice_download":
+                token_inv_id = payload.get("invoice_id")
+                token_cust_id = payload.get("customer_id")
+                if token_inv_id != invoice_id or (token_cust_id and token_cust_id != invoice.customer_id):
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Access denied: Token is not valid for this invoice.",
+                    )
+                is_signed_invoice_token = True
+            else:
+                user_id = payload.get("sub")
+                if user_id:
+                    current_user = db.query(User).filter(User.id == int(user_id)).first()
+        except HTTPException as e:
+            if raw_token and not current_user and not is_signed_invoice_token:
+                raise e
+
+    if not is_signed_invoice_token and current_user and current_user.role == "customer":
         if not current_user.customer_id or current_user.customer_id != invoice.customer_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -231,6 +243,12 @@ def add_payment(
         payment_date=payload.payment_date,
         notes=payload.notes,
     )
+
+    try:
+        from app.services.notification import dispatch_payment_notifications
+        dispatch_payment_notifications(db, payment)
+    except Exception:
+        pass
 
     return PaymentResponse(
         payment_id=payment.id,
@@ -302,6 +320,11 @@ def run_automated_billing_cycle(
             db.commit()
             invoices_generated += 1
             total_billed += Decimal(str(inv.total_amount))
+            try:
+                from app.services.notification import dispatch_invoice_notifications
+                dispatch_invoice_notifications(db, inv)
+            except Exception:
+                pass
         except HTTPException as e:
             if e.status_code == status.HTTP_409_CONFLICT:
                 skipped_count += 1

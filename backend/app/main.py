@@ -15,6 +15,7 @@ from app.routers import (
     invoices,
     dashboard,
     intelligence,
+    notifications,
 )
 
 Base.metadata.create_all(bind=engine)
@@ -26,6 +27,21 @@ try:
             conn.execute(
                 text(
                     "ALTER TABLE invoice_lines ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00;"
+                )
+            )
+            conn.execute(
+                text(
+                    "ALTER TABLE customers ADD COLUMN IF NOT EXISTS notify_email BOOLEAN NOT NULL DEFAULT TRUE;"
+                )
+            )
+            conn.execute(
+                text(
+                    "ALTER TABLE customers ADD COLUMN IF NOT EXISTS notify_whatsapp BOOLEAN NOT NULL DEFAULT TRUE;"
+                )
+            )
+            conn.execute(
+                text(
+                    "ALTER TABLE customers ADD COLUMN IF NOT EXISTS whatsapp_number VARCHAR(50);"
                 )
             )
 except Exception:
@@ -57,6 +73,7 @@ app.include_router(subscriptions.router, prefix=settings.API_V1_PREFIX)
 app.include_router(invoices.router, prefix=settings.API_V1_PREFIX)
 app.include_router(dashboard.router, prefix=settings.API_V1_PREFIX)
 app.include_router(intelligence.router, prefix=settings.API_V1_PREFIX)
+app.include_router(notifications.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/")

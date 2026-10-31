@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, FormEvent } from "react";
 import { api } from "../api/paydoo";
 import type { Product, Plan, Subscription } from "../api/types";
-import { formatCurrency, today } from "../utils/format";
+import { formatCurrency, formatDate, titleCase, today } from "../utils/format";
 import { errorMessage } from "../hooks/useCollection";
 import { Flash } from "./ui";
 
@@ -29,7 +29,6 @@ export function SubscribeModal({
   const [planId, setPlanId] = useState<number | undefined>(initialPlanId);
   const [quantity, setQuantity] = useState<number>(1);
   const [paymentTerms, setPaymentTerms] = useState<string>("Immediate");
-  const [startDate, setStartDate] = useState<string>(today());
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,7 +108,6 @@ export function SubscribeModal({
         plan_id: planId,
         variant_id: variantId,
         quantity: validQty,
-        start_date: startDate,
         payment_terms: paymentTerms,
       });
 
@@ -158,7 +156,15 @@ export function SubscribeModal({
               </div>
               <div className="breakdown-row">
                 <span>Billing Interval:</span>
-                <strong>{selectedPlan?.billing_interval || "Monthly"}</strong>
+                <strong>{titleCase(selectedPlan?.billing_interval || "Monthly")}</strong>
+              </div>
+              <div className="breakdown-row">
+                <span>Subscription Validity:</span>
+                <strong>{successResult.expiry_date ? `Fixed Term (Expires ${formatDate(successResult.expiry_date)})` : "Ongoing Subscription"}</strong>
+              </div>
+              <div className="breakdown-row">
+                <span>Commenced:</span>
+                <strong>{formatDate(successResult.start_date)}</strong>
               </div>
               <div className="breakdown-row total">
                 <span>First Cycle Invoiced:</span>
@@ -246,30 +252,62 @@ export function SubscribeModal({
               </div>
             </div>
 
-            <div className="form-columns">
-              <div className="field">
-                <span>Start Date</span>
-                <input
-                  type="date"
-                  required
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  disabled={submitting}
-                />
+            {selectedPlan && (
+              <div
+                style={{
+                  background: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "8px",
+                  padding: "12px",
+                  fontSize: "13px",
+                  display: "grid",
+                  gap: "8px",
+                }}
+              >
+                <div style={{ fontWeight: 600, color: "#334155", display: "flex", justifyContent: "space-between" }}>
+                  <span>Provider Subscription Terms</span>
+                  <span className="badge badge-active">{titleCase(selectedPlan.billing_interval)}</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", color: "#64748b" }}>
+                  <div>
+                    <span style={{ fontSize: "11px", textTransform: "uppercase", display: "block" }}>Billing Cadence</span>
+                    <strong style={{ color: "#1e293b" }}>{titleCase(selectedPlan.billing_interval)} Invoicing</strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: "11px", textTransform: "uppercase", display: "block" }}>Term Validity</span>
+                    <strong style={{ color: "#1e293b" }}>
+                      {selectedPlan.end_date ? `Fixed Term (Ends ${formatDate(selectedPlan.end_date)})` : "Ongoing Subscription"}
+                    </strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: "11px", textTransform: "uppercase", display: "block" }}>Commencement</span>
+                    <strong style={{ color: "#1e293b" }}>
+                      {selectedPlan.start_date && selectedPlan.start_date > today()
+                        ? `Starts ${formatDate(selectedPlan.start_date)}`
+                        : `Immediate (${formatDate(today())})`}
+                    </strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: "11px", textTransform: "uppercase", display: "block" }}>Renewal Policy</span>
+                    <strong style={{ color: "#1e293b" }}>
+                      {selectedPlan.allow_renewal ? "Auto-Renewing (Cancel anytime)" : "Auto-closes at term end"}
+                    </strong>
+                  </div>
+                </div>
               </div>
+            )}
 
-              <div className="field">
-                <span>Payment Terms</span>
-                <select
-                  value={paymentTerms}
-                  onChange={(e) => setPaymentTerms(e.target.value)}
-                  disabled={submitting}
-                >
-                  <option value="Immediate">Immediate</option>
-                  <option value="Net 15">Net 15</option>
-                  <option value="Net 30">Net 30</option>
-                </select>
-              </div>
+            <div className="field">
+              <span>Payment Terms</span>
+              <select
+                value={paymentTerms}
+                onChange={(e) => setPaymentTerms(e.target.value)}
+                disabled={submitting}
+              >
+                <option value="Immediate">Immediate</option>
+                <option value="Net 15">Net 15</option>
+                <option value="Net 30">Net 30</option>
+              </select>
             </div>
 
             {/* Authoritative Live Price Breakdown */}

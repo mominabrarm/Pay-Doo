@@ -1,20 +1,32 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.product import Product, ProductVariant
+from app.models.user import User
 from app.schemas.product import (
     ProductCreate,
     ProductResponse,
     ProductVariantCreate,
     ProductVariantResponse,
 )
+from app.services.auth import get_optional_current_user
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
 
 @router.post("", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
-def create_product(payload: ProductCreate, db: Session = Depends(get_db)):
+def create_product(
+    payload: ProductCreate,
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    if current_user and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Operation not permitted for role '{current_user.role}'. Required role: admin",
+        )
+
     existing = db.query(Product).filter(Product.code == payload.code).first()
     if existing:
         raise HTTPException(
@@ -43,7 +55,18 @@ def get_product(product_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{product_id}/variants", response_model=ProductVariantResponse, status_code=status.HTTP_201_CREATED)
-def create_variant(product_id: int, payload: ProductVariantCreate, db: Session = Depends(get_db)):
+def create_variant(
+    product_id: int,
+    payload: ProductVariantCreate,
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    if current_user and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Operation not permitted for role '{current_user.role}'. Required role: admin",
+        )
+
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found.")

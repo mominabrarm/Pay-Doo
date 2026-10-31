@@ -46,13 +46,15 @@ def get_alerts(
     current_user: Optional[User] = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ):
-    target_customer_id = customer_id
     if current_user and current_user.role == "customer":
-        target_customer_id = current_user.customer_id
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: Revenue leakage detection is an administrative tool.",
+        )
 
     return list_leakage_alerts(
         db=db,
-        customer_id=target_customer_id,
+        customer_id=customer_id,
         status_filter=status_filter,
         severity_filter=severity_filter,
         skip=skip,
@@ -108,11 +110,13 @@ def get_alerts_summary(
     current_user: Optional[User] = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ):
-    target_customer_id = None
     if current_user and current_user.role == "customer":
-        target_customer_id = current_user.customer_id
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: Revenue leakage detection is an administrative tool.",
+        )
 
-    return get_leakage_summary(db=db, customer_id=target_customer_id)
+    return get_leakage_summary(db=db, customer_id=None)
 
 
 # -------------------------------------------------------------
