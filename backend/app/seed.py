@@ -170,6 +170,84 @@ def seed_database():
         due_date=today + timedelta(days=15),
     )
 
+    # Subscriptions & payments for Apex Digital Agency (c2)
+    sub2 = Subscription(
+        subscription_number="SUB-2026-00002",
+        customer_id=c2.id,
+        plan_id=plan1.id,
+        status="active",
+        start_date=last_month_start,
+        next_billing_date=today,
+        payment_terms="Net 15",
+    )
+    db.add(sub2)
+    db.flush()
+    line2 = SubscriptionLine(
+        subscription_id=sub2.id,
+        product_id=p1.id,
+        quantity=2,
+        unit_price=plan1.price,
+        tax_rate=Decimal("18.00"),
+        amount=plan1.price * Decimal("2") * Decimal("1.18"),
+    )
+    db.add(line2)
+    db.commit()
+
+    inv2 = generate_subscription_invoice(
+        db=db,
+        subscription_id=sub2.id,
+        period_start=last_month_start,
+        period_end=last_month_end,
+        due_date=last_month_start + timedelta(days=15),
+    )
+    record_invoice_payment(
+        db=db,
+        invoice_id=inv2.id,
+        amount=inv2.total_amount,
+        payment_method="upi",
+        payment_date=last_month_start + timedelta(days=10),
+        notes="UPI Settlement Ref #UPI-APEX-8902",
+    )
+
+    # Subscriptions & payments for Solaria Retailers (c3)
+    sub3 = Subscription(
+        subscription_number="SUB-2026-00003",
+        customer_id=c3.id,
+        plan_id=plan2.id,
+        status="active",
+        start_date=last_month_start - timedelta(days=60),
+        next_billing_date=today + timedelta(days=300),
+        payment_terms="Net 30",
+    )
+    db.add(sub3)
+    db.flush()
+    line3 = SubscriptionLine(
+        subscription_id=sub3.id,
+        product_id=p1.id,
+        quantity=5,
+        unit_price=plan2.price,
+        tax_rate=Decimal("18.00"),
+        amount=plan2.price * Decimal("5") * Decimal("1.18"),
+    )
+    db.add(line3)
+    db.commit()
+
+    inv3 = generate_subscription_invoice(
+        db=db,
+        subscription_id=sub3.id,
+        period_start=last_month_start - timedelta(days=60),
+        period_end=last_month_start + timedelta(days=305),
+        due_date=last_month_start - timedelta(days=30),
+    )
+    record_invoice_payment(
+        db=db,
+        invoice_id=inv3.id,
+        amount=inv3.total_amount,
+        payment_method="bank_transfer",
+        payment_date=last_month_start - timedelta(days=40),
+        notes="Wire Transfer Settlement Ref #WT-SOLARIA-0014",
+    )
+
     db.close()
 
 
