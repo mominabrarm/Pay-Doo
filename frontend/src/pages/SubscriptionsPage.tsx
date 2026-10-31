@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { Link, useOutletContext } from "react-router-dom";
 import { api } from "../api/paydoo";
 import { getStoredUser } from "../api/client";
 import type {
@@ -24,6 +24,7 @@ import {
 } from "../components/ui";
 import { errorMessage, useCollection } from "../hooks/useCollection";
 import { formatCurrency, formatDate, today } from "../utils/format";
+import { SubscribeModal } from "../components/SubscribeModal";
 
 type SubscriptionForm = {
   customerId: string;
@@ -83,6 +84,13 @@ export function SubscriptionsPage() {
   const [form, setForm] = useState(initialForm);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+
+  // Customer self-service state
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [customerMessage, setCustomerMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+
   const selectedProduct = useMemo(
     () => products.data.find((product) => product.id === Number(form.productId)),
     [products.data, form.productId]
@@ -136,52 +144,192 @@ export function SubscriptionsPage() {
     }
   }
 
+  const handleStatusChange = async (subId: number, newStatus: SubscriptionStatus) => {
+    setActionLoading(subId);
+    setCustomerMessage(null);
+    try {
+      const updated = await api.updateSubscriptionStatus(subId, newStatus);
+      setCustomerMessage({
+        kind: "success",
+        text: `Subscription ${updated.subscription_number} status updated to ${newStatus}.`,
+      });
+      await subscriptions.refresh();
+    } catch (err) {
+      setCustomerMessage({ kind: "error", text: errorMessage(err) });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   if (isCustomer) {
+    const filteredSubs = subscriptions.data.filter((s) => {
+      if (statusFilter === "all") return true;
+      return s.status === statusFilter;
+    });
+
     return (
       <div className="page-stack">
         <PageHeader
           title="My Subscriptions"
           description="Active service plans, renewal dates, and billing cadences for your account."
           action={
-            <button className="button secondary" onClick={() => void subscriptions.refresh()}>
-              Refresh
-            </button>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+              <button className="button" onClick={() => setModalOpen(true)}>
+                + New Subscription
+              </button>
+              <Link to="/explore" className="button secondary">
+                Explore Catalog
+              </Link>
+              <button className="button secondary" onClick={() => void subscriptions.refresh()}>
+                Refresh
+              </button>
+            </div>
           }
         />
+
+        {customerMessage && <Flash kind={customerMessage.kind}>{customerMessage.text}</Flash>}
+
+        {/* Status Filter Tabs */}
+        <div className="tab-bar">
+          {["all", "active", "paused", "closed"].map((st) => (
+            <button
+              key={st}
+              className={`tab-btn ${statusFilter === st ? "active" : ""}`}
+              onClick={() => setStatusFilter(st)}
+            >
+              {st === "all" ? "All Subscriptions" : `${st.charAt(0).toUpperCase() + st.slice(1)}`}
+            </button>
+          ))}
+        </div>
+
         <Panel className="list-panel">
           <div className="panel-heading">
             <div>
-              <h2>Active subscriptions</h2>
+              <h2>Subscriptions register</h2>
               <p>Your ongoing subscriptions managed under PayDoo.</p>
             </div>
           </div>
+
           {subscriptions.loading ? (
             <LoadingState label="Loading subscriptions" />
           ) : subscriptions.error ? (
             <ErrorState message={subscriptions.error} retry={() => void subscriptions.refresh()} />
-          ) : subscriptions.data.length === 0 ? (
+          ) : filteredSubs.length === 0 ? (
             <EmptyState
-              title="No active subscriptions"
-              message="You currently do not have any active subscriptions registered."
+              title={statusFilter === "all" ? "No subscriptions yet" : `No ${statusFilter} subscriptions`}
+              message={
+                statusFilter === "all"
+                  ? "You do not have any software subscriptions active. Browse the catalog to get started."
+                  : `No subscriptions currently in '${statusFilter}' status.`
+              }
             />
           ) : (
             <>
-              <div className="subscription-list">
-                {subscriptions.data.map((subscription) => (
-                  <article className="subscription-card" key={subscription.id}>
-                    <div className="row-between">
+              <div className="subscription-list" style={{ display: "grid", gap: "16px" }}>
+                {filteredSubs.map((subscription) => (
+                  <article
+                    className="subscription-card"
+                    key={subscription.id}
+                    style={{
+                      background: "#ffffff",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: "10px",
+                      padding: "20px",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
                       <div>
-                        <h3>{subscription.subscription_number}</h3>
-                        <p>{subscription.plan?.name ?? `Plan #${subscription.plan_id}`}</p>
+                        <h3 style={{ margin: "0 0 4px", fontSize: "16px", color: "#1e293b" }}>
+                          {subscription.subscription_number}
+                        </h3>
+                        <p style={{ margin: 0, fontSize: "13px", color: "#64748b" }}>
+                          Plan: <strong>{subscription.plan?.name ?? `Plan #${subscription.plan_id}`}</strong> ({subscription.plan?.billing_interval || "recurring"})
+                        </p>
                       </div>
                       <StatusBadge value={subscription.status} />
                     </div>
-                    <div className="subscription-meta">
-                      <span>Next billing date: {formatDate(subscription.next_billing_date)}</span>
+
+                    <div className="subscription-meta" style={{ display: "flex", gap: "20px", fontSize: "12px", color: "#64748b", margin: "10px 0" }}>
                       <span>
-                        {subscription.lines.length} service line
-                        {subscription.lines.length === 1 ? "" : "s"}
+                        📅 Started: <strong>{formatDate(subscription.start_date)}</strong>
                       </span>
+                      <span>
+                        🔄 Next Billing: <strong>{formatDate(subscription.next_billing_date)}</strong>
+                      </span>
+                      <span>
+                        💳 Terms: <strong>{subscription.payment_terms}</strong>
+                      </span>
+                    </div>
+
+                    {/* Service Lines breakdown */}
+                    {subscription.lines && subscription.lines.length > 0 && (
+                      <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px solid #f1f5f9" }}>
+                        <span style={{ fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
+                          Included Services & Licenses:
+                        </span>
+                        <div style={{ display: "grid", gap: "6px", marginTop: "6px" }}>
+                          {subscription.lines.map((l) => (
+                            <div
+                              key={l.id}
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                fontSize: "13px",
+                                padding: "6px 10px",
+                                background: "#f8fafc",
+                                borderRadius: "6px",
+                              }}
+                            >
+                              <span>
+                                <strong>Product #{l.product_id}</strong>
+                                {l.variant_id ? " (Variant #" + l.variant_id + ")" : ""} × {l.quantity} unit(s)
+                              </span>
+                              <span>
+                                {formatCurrency(l.unit_price)} · {formatCurrency(l.amount)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Lifecycle Actions */}
+                    <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "16px", paddingTop: "12px", borderTop: "1px solid #f1f5f9" }}>
+                      {subscription.status === "active" && (
+                        <button
+                          className="button secondary"
+                          disabled={actionLoading === subscription.id}
+                          onClick={() => handleStatusChange(subscription.id, "paused")}
+                        >
+                          {actionLoading === subscription.id ? "Updating…" : "Pause Subscription"}
+                        </button>
+                      )}
+
+                      {subscription.status === "paused" && (
+                        <button
+                          className="button"
+                          disabled={actionLoading === subscription.id}
+                          onClick={() => handleStatusChange(subscription.id, "active")}
+                        >
+                          {actionLoading === subscription.id ? "Updating…" : "Resume Subscription"}
+                        </button>
+                      )}
+
+                      {subscription.status !== "closed" && (
+                        <button
+                          className="text-button"
+                          style={{ color: "#b42318" }}
+                          disabled={actionLoading === subscription.id}
+                          onClick={() => {
+                            if (window.confirm(`Are you sure you want to cancel subscription ${subscription.subscription_number}?`)) {
+                              handleStatusChange(subscription.id, "closed");
+                            }
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      )}
                     </div>
                   </article>
                 ))}
@@ -194,6 +342,14 @@ export function SubscriptionsPage() {
             </>
           )}
         </Panel>
+
+        <SubscribeModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          onSubscribed={() => {
+            void subscriptions.refresh();
+          }}
+        />
       </div>
     );
   }

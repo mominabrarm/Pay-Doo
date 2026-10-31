@@ -154,6 +154,7 @@ export function InvoicesPage() {
                     <tr>
                       <th>Invoice</th>
                       <th>Period</th>
+                      <th>Total</th>
                       <th>Status</th>
                       <th>Outstanding</th>
                       <th>Actions</th>
@@ -164,18 +165,34 @@ export function InvoicesPage() {
                       <tr key={invoice.id}>
                         <td>
                           <strong>{invoice.invoice_number}</strong>
-                          <span className="mono">Subscription #{invoice.subscription_id}</span>
+                          <span className="mono">Sub #{invoice.subscription_id}</span>
                         </td>
                         <td>
                           {formatDate(invoice.billing_period_start)} –{" "}
                           {formatDate(invoice.billing_period_end)}
                         </td>
                         <td>
+                          <strong>{formatCurrency(invoice.total_amount)}</strong>
+                        </td>
+                        <td>
                           <StatusBadge value={invoice.status} />
                         </td>
-                        <td>{formatCurrency(invoice.outstanding_balance)}</td>
                         <td>
-                          <div style={{ display: "flex", gap: "6px" }}>
+                          <span style={{ color: Number(invoice.outstanding_balance) > 0 ? "#b42318" : "#0f766e", fontWeight: 700 }}>
+                            {formatCurrency(invoice.outstanding_balance)}
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                            <a
+                              className="text-button"
+                              href={api.getInvoicePdfUrl(invoice.id)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              download={`Invoice-${invoice.invoice_number}.pdf`}
+                            >
+                              ⬇ PDF
+                            </a>
                             <button
                               className="text-button"
                               onClick={() => void viewInvoice(invoice.id)}
@@ -184,7 +201,7 @@ export function InvoicesPage() {
                             </button>
                             <button
                               className="text-button"
-                              style={{ color: "#38bdf8" }}
+                              style={{ color: "#0f766e" }}
                               onClick={() => setExplainingInvoiceId(invoice.id)}
                             >
                               💡 Explain

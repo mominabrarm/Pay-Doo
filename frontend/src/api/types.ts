@@ -416,3 +416,20 @@ export interface InvoiceExplanation {
   comparison_metrics: InvoiceComparisonItem[];
   comparison_summary?: string;
 }
+
+export interface CustomerSubscribeInput {
+  product_id: number;
+  plan_id: number;
+  variant_id?: number;
+  quantity: number;
+  start_date?: string;
+  payment_terms?: string;
+}
+
+export interface ProfileUpdateInput {
+  full_name?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  country?: string;
+}

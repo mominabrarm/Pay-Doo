@@ -9,6 +9,10 @@ import { PlansPage } from "./pages/PlansPage";
 import { ProductsPage } from "./pages/ProductsPage";
 import { SubscriptionsPage } from "./pages/SubscriptionsPage";
 import { IntelligencePage } from "./pages/IntelligencePage";
+import { ExploreSoftwarePage } from "./pages/ExploreSoftwarePage";
+import { PricingPlansPage } from "./pages/PricingPlansPage";
+import { BillingHistoryPage } from "./pages/BillingHistoryPage";
+import { AccountSettingsPage } from "./pages/AccountSettingsPage";
 import { getStoredUser } from "./api/client";
 import type { AuthUser, UserRole } from "./api/types";
 
@@ -76,6 +80,10 @@ export const router = createBrowserRouter([
       },
       { path: "subscriptions", element: <SubscriptionsPage /> },
       { path: "invoices", element: <InvoicesPage /> },
+      { path: "explore", element: <ExploreSoftwarePage /> },
+      { path: "pricing", element: <PricingPlansPage /> },
+      { path: "billing-history", element: <BillingHistoryPage /> },
+      { path: "settings", element: <AccountSettingsPage /> },
       {
         path: "payments",
         element: (

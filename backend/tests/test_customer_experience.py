@@ -111,3 +111,4 @@ def test_customer_explore_and_subscribe_flow(client: TestClient, db_session):
     # 8. Customer payments history endpoint
     pay_history = client.get("/api/invoices/payments/history", headers=headers)
     assert pay_history.status_code == 200
+

@@ -30,8 +30,12 @@ const navItemsByRole: Record<UserRole, NavItem[]> = {
   ],
   customer: [
     { path: "/dashboard", label: "My Portal" },
+    { path: "/explore", label: "Explore Software" },
+    { path: "/pricing", label: "Pricing & Plans" },
     { path: "/subscriptions", label: "My Subscriptions" },
     { path: "/invoices", label: "My Invoices" },
+    { path: "/billing-history", label: "Billing History" },
+    { path: "/settings", label: "Account Settings" },
   ],
 };
 

@@ -121,6 +121,25 @@ function CustomerDashboardContent({ summary }: { summary: CustomerDashboardSumma
 
   return (
     <div className="page-stack">
+      {/* Quick Action Navigation Bar */}
+      <div className="quick-actions-bar">
+        <Link to="/explore" className="quick-action-link">
+          🚀 Explore Software Catalog
+        </Link>
+        <Link to="/pricing" className="quick-action-link">
+          📋 Compare Billing Plans
+        </Link>
+        <Link to="/subscriptions" className="quick-action-link">
+          ⚙️ Manage Subscriptions
+        </Link>
+        <Link to="/billing-history" className="quick-action-link">
+          📜 Billing & Receipts
+        </Link>
+        <Link to="/settings" className="quick-action-link">
+          👤 Account Profile
+        </Link>
+      </div>
+
       <section className="metric-grid">
         <MetricCard
           label="Active subscriptions"

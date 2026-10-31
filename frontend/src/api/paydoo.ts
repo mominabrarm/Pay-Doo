@@ -4,8 +4,9 @@ import type {
   Customer,
   CustomerDashboardSummary,
   CustomerInput,
-  DiscountRule,
+  CustomerSubscribeInput,
   DashboardSummary,
+  DiscountRule,
   Invoice,
   InvoiceExplanation,
   InvoiceGenerationInput,
@@ -19,6 +20,7 @@ import type {
   Product,
   ProductInput,
   ProductVariant,
+  ProfileUpdateInput,
   SimulatorRequest,
   SimulatorResponse,
   Subscription,
@@ -64,6 +66,10 @@ export const api = {
     const token = getAuthToken();
     return `/api/invoices/${invoiceId}/pdf${token ? `?token=${encodeURIComponent(token)}` : ""}`;
   },
+  // Customer self-service methods
+  subscribe: (input: CustomerSubscribeInput) => request<Subscription>("/subscriptions/subscribe", body(input)),
+  updateProfile: (input: ProfileUpdateInput) => request<AuthUser>("/auth/profile", { method: "PUT", body: JSON.stringify(input) }),
+  listPaymentHistory: () => request<Payment[]>("/invoices/payments/history"),
   recordPayment: (invoiceId: number, input: PaymentInput) => request<Payment>(`/invoices/${invoiceId}/payments`, body(input)),
 
   // Financial Intelligence (PROTECT, PREDICT, EXPLAIN)
