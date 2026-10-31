@@ -1,11 +1,14 @@
 import uuid
 from datetime import date
 from decimal import Decimal
+from typing import Optional
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from app.models.invoice import Invoice
 from app.models.payment import Payment
 from app.services.billing import round_currency
+
+VALID_PAYMENT_METHODS = {"bank_transfer", "credit_card", "upi", "cash"}
 
 
 def record_invoice_payment(
@@ -14,7 +17,7 @@ def record_invoice_payment(
     amount: Decimal,
     payment_method: str,
     payment_date: date,
-    notes: str = None,
+    notes: Optional[str] = None,
 ) -> Payment:
     invoice = db.query(Invoice).filter(Invoice.id == invoice_id).with_for_update().first()
     if not invoice:
@@ -29,6 +32,12 @@ def record_invoice_payment(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot record payment on a cancelled invoice.",
+        )
+
+    if payment_method not in VALID_PAYMENT_METHODS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid payment method '{payment_method}'. Allowed: {', '.join(sorted(VALID_PAYMENT_METHODS))}.",
         )
 
     payment_amount = round_currency(amount)

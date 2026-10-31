@@ -1,7 +1,7 @@
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { api } from "../api/paydoo";
-import { setAuthSession, ApiError } from "../api/client";
+import { setAuthSession, getAuthToken, ApiError } from "../api/client";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -17,6 +17,12 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (getAuthToken()) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [navigate]);
 
   // Client-side password rules for immediate user feedback
   const hasMinLength = password.length > 8;
