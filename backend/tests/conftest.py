@@ -1,3 +1,8 @@
+import os
+
+# Ensure test suite uses isolated in-memory SQLite regardless of local host PostgreSQL availability
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -39,4 +44,3 @@ def client(db_session):
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
-
