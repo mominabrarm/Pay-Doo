@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { NavLink, Outlet, Navigate, useLocation, useNavigate } from "react-router-dom";
-import { getAuthToken, getStoredUser, clearAuthSession } from "../api/client";
+import { getAuthToken, getStoredUser, setAuthSession, clearAuthSession } from "../api/client";
 import { api } from "../api/paydoo";
 import type { AuthUser, UserRole } from "../api/types";
 
@@ -42,7 +42,10 @@ export function AppShell() {
   useEffect(() => {
     if (token) {
       api.getMe()
-        .then((user) => setCurrentUser(user))
+        .then((user) => {
+          setCurrentUser(user);
+          setAuthSession(token, user);
+        })
         .catch(() => {
           clearAuthSession();
           navigate("/login", { replace: true, state: { from: location } });
@@ -124,7 +127,7 @@ export function AppShell() {
       </aside>
 
       <main className="main-content">
-        <Outlet />
+        <Outlet context={{ currentUser }} />
       </main>
     </div>
   );

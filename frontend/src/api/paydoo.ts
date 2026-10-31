@@ -1,4 +1,4 @@
-import { request } from "./client";
+import { request, getAuthToken } from "./client";
 import type {
   AuthUser,
   Customer,
@@ -48,6 +48,9 @@ export const api = {
   generateInvoice: (subscriptionId: number, input: InvoiceGenerationInput) => request<Invoice>(`/subscriptions/${subscriptionId}/generate-invoice`, body(input)),
   listInvoices: () => request<Invoice[]>("/invoices?limit=50"),
   getInvoice: (invoiceId: number) => request<Invoice>(`/invoices/${invoiceId}`),
-  getInvoicePdfUrl: (invoiceId: number) => `/api/invoices/${invoiceId}/pdf`,
+  getInvoicePdfUrl: (invoiceId: number) => {
+    const token = getAuthToken();
+    return `/api/invoices/${invoiceId}/pdf${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+  },
   recordPayment: (invoiceId: number, input: PaymentInput) => request<Payment>(`/invoices/${invoiceId}/payments`, body(input)),
 };

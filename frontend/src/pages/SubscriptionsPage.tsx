@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useOutletContext } from "react-router-dom";
 import { api } from "../api/paydoo";
 import { getStoredUser } from "../api/client";
 import type { AuthUser, Customer, Plan, Product, Subscription, SubscriptionStatus } from "../api/types";
@@ -44,7 +45,15 @@ function initialForm(): SubscriptionForm {
 }
 
 export function SubscriptionsPage() {
-  const currentUser = getStoredUser<AuthUser>();
+  const context = useOutletContext<{ currentUser: AuthUser | null } | undefined>();
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(context?.currentUser ?? getStoredUser<AuthUser>());
+
+  useEffect(() => {
+    if (context?.currentUser) {
+      setCurrentUser(context.currentUser);
+    }
+  }, [context?.currentUser]);
+
   const isCustomer = currentUser?.role === "customer";
 
   const customers = useCollection(isCustomer ? async () => [] : api.listCustomers);

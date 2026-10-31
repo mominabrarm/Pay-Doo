@@ -1,5 +1,5 @@
-import { FormEvent, useState } from "react";
-import { Link } from "react-router-dom";
+import { FormEvent, useEffect, useState } from "react";
+import { Link, useOutletContext } from "react-router-dom";
 import { api } from "../api/paydoo";
 import { getStoredUser } from "../api/client";
 import type { AuthUser, Invoice, Subscription } from "../api/types";
@@ -24,7 +24,15 @@ const initialForm = {
 };
 
 export function InvoicesPage() {
-  const currentUser = getStoredUser<AuthUser>();
+  const context = useOutletContext<{ currentUser: AuthUser | null } | undefined>();
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(context?.currentUser ?? getStoredUser<AuthUser>());
+
+  useEffect(() => {
+    if (context?.currentUser) {
+      setCurrentUser(context.currentUser);
+    }
+  }, [context?.currentUser]);
+
   const isCustomer = currentUser?.role === "customer";
 
   const subscriptions = useCollection(isCustomer ? async () => [] : api.listSubscriptions);
