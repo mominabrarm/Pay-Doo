@@ -57,6 +57,23 @@ export interface Plan {
   updated_at: string;
 }
 
+export interface DiscountRule {
+  id: number;
+  name: string;
+  code: string;
+  discount_type: "percentage" | "fixed";
+  value: Money;
+  min_purchase_amount: Money;
+  min_quantity: number;
+  max_uses: number | null;
+  current_uses: number;
+  start_date: string | null;
+  end_date: string | null;
+  target_type: "whole_subscription" | "specific_product";
+  product_id: number | null;
+  is_active: boolean;
+}
+
 export type SubscriptionStatus = "draft" | "quotation" | "confirmed" | "active" | "closed" | "paused";
 
 export interface SubscriptionLine {
@@ -221,6 +238,7 @@ export interface PlanInput {
 export interface SubscriptionInput {
   customer_id: number;
   plan_id: number;
+  discount_rule_id?: number;
   start_date: string;
   expiry_date?: string;
   payment_terms: string;

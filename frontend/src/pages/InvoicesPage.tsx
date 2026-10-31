@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
 import { api } from "../api/paydoo";
 import { getStoredUser } from "../api/client";
@@ -10,19 +10,16 @@ import {
   FormLabel,
   LoadingState,
   PageHeader,
+  PaginationControls,
   Panel,
   StatusBadge,
 } from "../components/ui";
 import { ExplainBillModal } from "../components/ExplainBillModal";
 import { errorMessage, useCollection } from "../hooks/useCollection";
-import { formatCurrency, formatDate, today } from "../utils/format";
+import { billingPeriodEnd, formatCurrency, formatDate, today } from "../utils/format";
 
-const initialForm = {
-  subscriptionId: "",
-  periodStart: today(),
-  periodEnd: today(),
-  dueDate: today(),
-};
+const initialForm = { subscriptionId: "", periodStart: "", periodEnd: "", dueDate: today() };
+const PAGE_SIZE = 50;
 
 export function InvoicesPage() {
   const context = useOutletContext<{ currentUser: AuthUser | null } | undefined>();
@@ -37,7 +34,9 @@ export function InvoicesPage() {
   const isCustomer = currentUser?.role === "customer";
 
   const subscriptions = useCollection(isCustomer ? async () => [] : api.listSubscriptions);
-  const invoices = useCollection(api.listInvoices);
+  const [page, setPage] = useState(0);
+  const loadInvoices = useCallback(() => api.listInvoices(page * PAGE_SIZE, PAGE_SIZE), [page]);
+  const invoices = useCollection(loadInvoices);
   const [form, setForm] = useState(initialForm);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
@@ -57,11 +56,9 @@ export function InvoicesPage() {
         due_date: form.dueDate,
       });
       setSelectedInvoice(invoice);
-      setMessage({
-        kind: "success",
-        text: `${invoice.invoice_number} has been generated and confirmed.`,
-      });
-      await invoices.refresh();
+      setMessage({ kind: "success", text: `${invoice.invoice_number} has been generated and confirmed.` });
+      setForm(initialForm);
+      await Promise.all([invoices.refresh(), subscriptions.refresh()]);
     } catch (cause) {
       setMessage({ kind: "error", text: errorMessage(cause) });
     } finally {
@@ -200,6 +197,13 @@ export function InvoicesPage() {
                 </table>
               </div>
             )}
+            {!invoices.loading && !invoices.error && (invoices.data.length > 0 || page > 0) && (
+              <PaginationControls
+                page={page}
+                hasNext={invoices.data.length === PAGE_SIZE}
+                onPageChange={setPage}
+              />
+            )}
           </Panel>
         </div>
         <InvoiceDetail
@@ -232,60 +236,65 @@ function InvoiceForm({
   submitting: boolean;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
+  const activeSubscriptions = subscriptions.filter((subscription) => subscription.status === "active");
+  const selectedSubscription = activeSubscriptions.find((subscription) => subscription.id === Number(form.subscriptionId));
+
+  function chooseSubscription(subscriptionId: string) {
+    const subscription = activeSubscriptions.find((item) => item.id === Number(subscriptionId));
+    const periodStart = subscription?.next_billing_date ?? "";
+    setForm({
+      ...form,
+      subscriptionId,
+      periodStart,
+      periodEnd: subscription?.plan ? billingPeriodEnd(periodStart, subscription.plan.billing_interval) : "",
+      dueDate: periodStart > today() ? periodStart : today(),
+    });
+  }
+
   return (
     <form onSubmit={onSubmit} className="form-grid invoice-form">
       <FormLabel label="Subscription">
         <select
           required
           value={form.subscriptionId}
-          onChange={(event) => setForm({ ...form, subscriptionId: event.target.value })}
+          onChange={(event) => chooseSubscription(event.target.value)}
         >
           <option value="">Choose an active subscription</option>
-          {subscriptions
-            .filter((subscription) => subscription.status === "active")
-            .map((subscription) => (
-              <option key={subscription.id} value={subscription.id}>
-                {subscription.subscription_number} ·{" "}
-                {subscription.customer?.name ?? `Customer #${subscription.customer_id}`}
-              </option>
-            ))}
+          {activeSubscriptions.map((subscription) => (
+            <option key={subscription.id} value={subscription.id}>
+              {subscription.subscription_number} ·{" "}
+              {subscription.customer?.name ?? `Customer #${subscription.customer_id}`}
+            </option>
+          ))}
         </select>
       </FormLabel>
       <FormLabel label="Billing period start">
-        <input
-          required
-          type="date"
-          value={form.periodStart}
-          onChange={(event) => setForm({ ...form, periodStart: event.target.value })}
-        />
+        <input required type="date" value={form.periodStart} readOnly />
       </FormLabel>
       <FormLabel label="Billing period end">
-        <input
-          required
-          type="date"
-          value={form.periodEnd}
-          min={form.periodStart}
-          onChange={(event) => setForm({ ...form, periodEnd: event.target.value })}
-        />
+        <input required type="date" value={form.periodEnd} readOnly />
       </FormLabel>
       <FormLabel label="Payment due date">
         <input
           required
           type="date"
+          min={form.periodStart > today() ? form.periodStart : today()}
           value={form.dueDate}
           onChange={(event) => setForm({ ...form, dueDate: event.target.value })}
         />
       </FormLabel>
+      {selectedSubscription && (
+        <p className="field-note invoice-period-note">
+          Period follows the {selectedSubscription.plan?.billing_interval ?? "configured"} plan interval and the next billing date returned by the API.
+        </p>
+      )}
       <div className="form-actions">
-        <button
-          className="button"
-          disabled={
-            submitting ||
-            subscriptions.filter((subscription) => subscription.status === "active").length === 0
-          }
-        >
+        <button className="button" disabled={submitting || !selectedSubscription}>
           {submitting ? "Generating…" : "Generate invoice"}
         </button>
+        {activeSubscriptions.length === 0 && (
+          <span className="field-note">No active subscriptions are available to bill.</span>
+        )}
       </div>
     </form>
   );

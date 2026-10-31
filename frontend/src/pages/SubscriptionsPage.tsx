@@ -1,8 +1,16 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { api } from "../api/paydoo";
 import { getStoredUser } from "../api/client";
-import type { AuthUser, Customer, Plan, Product, Subscription, SubscriptionStatus } from "../api/types";
+import type {
+  AuthUser,
+  Customer,
+  DiscountRule,
+  Plan,
+  Product,
+  Subscription,
+  SubscriptionStatus,
+} from "../api/types";
 import {
   EmptyState,
   ErrorState,
@@ -10,6 +18,7 @@ import {
   FormLabel,
   LoadingState,
   PageHeader,
+  PaginationControls,
   Panel,
   StatusBadge,
 } from "../components/ui";
@@ -19,6 +28,7 @@ import { formatCurrency, formatDate, today } from "../utils/format";
 type SubscriptionForm = {
   customerId: string;
   planId: string;
+  discountRuleId: string;
   productId: string;
   variantId: string;
   quantity: string;
@@ -29,10 +39,13 @@ type SubscriptionForm = {
   paymentTerms: string;
 };
 
+const PAGE_SIZE = 50;
+
 function initialForm(): SubscriptionForm {
   return {
     customerId: "",
     planId: "",
+    discountRuleId: "",
     productId: "",
     variantId: "",
     quantity: "1",
@@ -58,8 +71,14 @@ export function SubscriptionsPage() {
 
   const customers = useCollection(isCustomer ? async () => [] : api.listCustomers);
   const plans = useCollection(isCustomer ? async () => [] : api.listPlans);
+  const discounts = useCollection(isCustomer ? async () => [] : api.listDiscounts);
   const products = useCollection(isCustomer ? async () => [] : api.listProducts);
-  const subscriptions = useCollection(api.listSubscriptions);
+  const [subscriptionPage, setSubscriptionPage] = useState(0);
+  const loadSubscriptions = useCallback(
+    () => api.listSubscriptions(subscriptionPage * PAGE_SIZE, PAGE_SIZE),
+    [subscriptionPage]
+  );
+  const subscriptions = useCollection(loadSubscriptions);
 
   const [form, setForm] = useState(initialForm);
   const [submitting, setSubmitting] = useState(false);
@@ -90,6 +109,7 @@ export function SubscriptionsPage() {
       const subscription = await api.createSubscription({
         customer_id: Number(form.customerId),
         plan_id: Number(form.planId),
+        discount_rule_id: form.discountRuleId ? Number(form.discountRuleId) : undefined,
         start_date: form.startDate,
         expiry_date: form.expiryDate || undefined,
         payment_terms: form.paymentTerms,
@@ -145,34 +165,43 @@ export function SubscriptionsPage() {
               message="You currently do not have any active subscriptions registered."
             />
           ) : (
-            <div className="subscription-list">
-              {subscriptions.data.map((subscription) => (
-                <article className="subscription-card" key={subscription.id}>
-                  <div className="row-between">
-                    <div>
-                      <h3>{subscription.subscription_number}</h3>
-                      <p>{subscription.plan?.name ?? `Plan #${subscription.plan_id}`}</p>
+            <>
+              <div className="subscription-list">
+                {subscriptions.data.map((subscription) => (
+                  <article className="subscription-card" key={subscription.id}>
+                    <div className="row-between">
+                      <div>
+                        <h3>{subscription.subscription_number}</h3>
+                        <p>{subscription.plan?.name ?? `Plan #${subscription.plan_id}`}</p>
+                      </div>
+                      <StatusBadge value={subscription.status} />
                     </div>
-                    <StatusBadge value={subscription.status} />
-                  </div>
-                  <div className="subscription-meta">
-                    <span>Next billing date: {formatDate(subscription.next_billing_date)}</span>
-                    <span>
-                      {subscription.lines.length} service line
-                      {subscription.lines.length === 1 ? "" : "s"}
-                    </span>
-                  </div>
-                </article>
-              ))}
-            </div>
+                    <div className="subscription-meta">
+                      <span>Next billing date: {formatDate(subscription.next_billing_date)}</span>
+                      <span>
+                        {subscription.lines.length} service line
+                        {subscription.lines.length === 1 ? "" : "s"}
+                      </span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+              <PaginationControls
+                page={subscriptionPage}
+                hasNext={subscriptions.data.length === PAGE_SIZE}
+                onPageChange={setSubscriptionPage}
+              />
+            </>
           )}
         </Panel>
       </div>
     );
   }
 
-  const dependenciesLoading = customers.loading || plans.loading || products.loading;
-  const dependencyError = customers.error || plans.error || products.error;
+  const dependenciesLoading =
+    customers.loading || plans.loading || products.loading || discounts.loading;
+  const dependencyError =
+    customers.error || plans.error || products.error || discounts.error;
 
   return (
     <div className="page-stack">
@@ -198,6 +227,7 @@ export function SubscriptionsPage() {
                 void customers.refresh();
                 void plans.refresh();
                 void products.refresh();
+                void discounts.refresh();
               }}
             />
           ) : (
@@ -206,6 +236,7 @@ export function SubscriptionsPage() {
               setForm={setForm}
               customers={customers.data}
               plans={plans.data}
+              discounts={discounts.data}
               products={products.data}
               selectedProduct={selectedProduct}
               submitting={submitting}
@@ -213,7 +244,11 @@ export function SubscriptionsPage() {
             />
           )}
         </Panel>
-        <SubscriptionList subscriptions={subscriptions} />
+        <SubscriptionList
+          subscriptions={subscriptions}
+          page={subscriptionPage}
+          onPageChange={setSubscriptionPage}
+        />
       </section>
     </div>
   );
@@ -224,6 +259,7 @@ function SubscriptionFormFields({
   setForm,
   customers,
   plans,
+  discounts,
   products,
   selectedProduct,
   submitting,
@@ -233,12 +269,15 @@ function SubscriptionFormFields({
   setForm: (form: SubscriptionForm) => void;
   customers: Customer[];
   plans: Plan[];
+  discounts: DiscountRule[];
   products: Product[];
   selectedProduct: Product | undefined;
   submitting: boolean;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const formIsReady = customers.length > 0 && plans.length > 0 && products.length > 0;
+  const selectedPlan = plans.find((plan) => plan.id === Number(form.planId));
+
   return (
     <form onSubmit={onSubmit} className="form-grid">
       <FormLabel label="Customer">
@@ -265,6 +304,19 @@ function SubscriptionFormFields({
           {plans.map((plan) => (
             <option key={plan.id} value={plan.id}>
               {plan.name} · {formatCurrency(plan.price)}/{plan.billing_interval}
+            </option>
+          ))}
+        </select>
+      </FormLabel>
+      <FormLabel label="Discount rule (optional)">
+        <select
+          value={form.discountRuleId}
+          onChange={(event) => setForm({ ...form, discountRuleId: event.target.value })}
+        >
+          <option value="">No discount</option>
+          {discounts.map((discount) => (
+            <option key={discount.id} value={discount.id}>
+              {discount.name} · {discount.code}
             </option>
           ))}
         </select>
@@ -303,21 +355,14 @@ function SubscriptionFormFields({
         <input
           required
           type="number"
-          min="1"
+          min={selectedPlan?.min_quantity ?? 1}
           step="1"
           value={form.quantity}
           onChange={(event) => setForm({ ...form, quantity: event.target.value })}
         />
       </FormLabel>
       <FormLabel label="Unit price">
-        <input
-          required
-          type="number"
-          min="0"
-          step="0.01"
-          value={form.unitPrice}
-          onChange={(event) => setForm({ ...form, unitPrice: event.target.value })}
-        />
+        <input required type="number" min="0" step="0.01" value={form.unitPrice} readOnly />
       </FormLabel>
       <FormLabel label="Tax rate (%)">
         <input
@@ -340,6 +385,8 @@ function SubscriptionFormFields({
         <input
           required
           type="date"
+          min={selectedPlan?.start_date ?? undefined}
+          max={selectedPlan?.end_date ?? undefined}
           value={form.startDate}
           onChange={(event) => setForm({ ...form, startDate: event.target.value })}
         />
@@ -347,6 +394,7 @@ function SubscriptionFormFields({
       <FormLabel label="Expiry date">
         <input
           type="date"
+          min={form.startDate}
           value={form.expiryDate}
           onChange={(event) => setForm({ ...form, expiryDate: event.target.value })}
         />
@@ -355,7 +403,9 @@ function SubscriptionFormFields({
         <button className="button" disabled={submitting || !formIsReady}>
           {submitting ? "Creating…" : "Activate subscription"}
         </button>
-        {!formIsReady && <span className="field-note">Add a customer, plan, and product first.</span>}
+        {!formIsReady && (
+          <span className="field-note">Add a customer, plan, and product first.</span>
+        )}
       </div>
     </form>
   );
@@ -363,6 +413,8 @@ function SubscriptionFormFields({
 
 function SubscriptionList({
   subscriptions,
+  page,
+  onPageChange,
 }: {
   subscriptions: {
     data: Subscription[];
@@ -370,11 +422,20 @@ function SubscriptionList({
     error: string | null;
     refresh: () => Promise<void>;
   };
+  page: number;
+  onPageChange: (page: number) => void;
 }) {
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
 
   async function updateStatus(id: number, status: SubscriptionStatus) {
+    const subscription = subscriptions.data.find((item) => item.id === id);
+    if (
+      status === "closed" &&
+      subscription &&
+      !window.confirm(`Close subscription ${subscription.subscription_number}?`)
+    )
+      return;
     setUpdatingId(id);
     setMessage(null);
     try {
@@ -405,48 +466,74 @@ function SubscriptionList({
       ) : subscriptions.error ? (
         <ErrorState message={subscriptions.error} retry={() => void subscriptions.refresh()} />
       ) : subscriptions.data.length === 0 ? (
-        <EmptyState
-          title="No subscriptions yet"
-          message="Create one when customer, plan, and product setup is complete."
-        />
+        <>
+          <EmptyState
+            title={page > 0 ? "No more subscriptions" : "No subscriptions yet"}
+            message={
+              page > 0
+                ? "You have reached the end of the subscription register."
+                : "Create one when customer, plan, and product setup is complete."
+            }
+          />
+          <PaginationControls page={page} hasNext={false} onPageChange={onPageChange} />
+        </>
       ) : (
-        <div className="subscription-list">
-          {subscriptions.data.map((subscription) => (
-            <article className="subscription-card" key={subscription.id}>
-              <div className="row-between">
-                <div>
-                  <h3>{subscription.subscription_number}</h3>
-                  <p>
-                    {subscription.customer?.name ?? `Customer #${subscription.customer_id}`} ·{" "}
-                    {subscription.plan?.name ?? `Plan #${subscription.plan_id}`}
-                  </p>
+        <>
+          <div className="subscription-list">
+            {subscriptions.data.map((subscription) => (
+              <article className="subscription-card" key={subscription.id}>
+                <div className="row-between">
+                  <div>
+                    <h3>{subscription.subscription_number}</h3>
+                    <p>
+                      {subscription.customer?.name ?? `Customer #${subscription.customer_id}`} ·{" "}
+                      {subscription.plan?.name ?? `Plan #${subscription.plan_id}`}
+                    </p>
+                  </div>
+                  <StatusBadge value={subscription.status} />
                 </div>
-                <StatusBadge value={subscription.status} />
-              </div>
-              <div className="subscription-meta">
-                <span>Next bill: {formatDate(subscription.next_billing_date)}</span>
-                <span>
-                  {subscription.lines.length} line{subscription.lines.length === 1 ? "" : "s"}
-                </span>
-              </div>
-              <select
-                aria-label={`Status for ${subscription.subscription_number}`}
-                value={subscription.status}
-                disabled={updatingId === subscription.id}
-                onChange={(event) =>
-                  void updateStatus(subscription.id, event.target.value as SubscriptionStatus)
-                }
-              >
-                {(["active", "paused", "closed"] as SubscriptionStatus[]).map((status) => (
-                  <option key={status} value={status}>
-                    {status[0].toUpperCase() + status.slice(1)}
-                  </option>
-                ))}
-              </select>
-            </article>
-          ))}
-        </div>
+                <div className="subscription-meta">
+                  <span>Next bill: {formatDate(subscription.next_billing_date)}</span>
+                  <span>
+                    {subscription.lines.length} line{subscription.lines.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <select
+                  aria-label={`Status for ${subscription.subscription_number}`}
+                  value={subscription.status}
+                  disabled={updatingId === subscription.id}
+                  onChange={(event) =>
+                    void updateStatus(subscription.id, event.target.value as SubscriptionStatus)
+                  }
+                >
+                  {getAllowedStatuses(subscription).map((nextStatus) => (
+                    <option key={nextStatus} value={nextStatus}>
+                      {nextStatus[0].toUpperCase() + nextStatus.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </article>
+            ))}
+          </div>
+          <PaginationControls
+            page={page}
+            hasNext={subscriptions.data.length === PAGE_SIZE}
+            onPageChange={onPageChange}
+          />
+        </>
       )}
     </Panel>
   );
+}
+
+function getAllowedStatuses(subscription: Subscription): SubscriptionStatus[] {
+  const transitions: Record<SubscriptionStatus, SubscriptionStatus[]> = {
+    draft: ["quotation", "confirmed", "active", "closed"],
+    quotation: ["confirmed", "closed"],
+    confirmed: ["active", "closed"],
+    active: [...(subscription.plan?.allow_pause ? (["paused"] as const) : []), "closed"],
+    paused: ["active", "closed"],
+    closed: [...(subscription.plan?.allow_renewal ? (["active"] as const) : [])],
+  };
+  return [subscription.status, ...(transitions[subscription.status] || [])];
 }

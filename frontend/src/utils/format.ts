@@ -20,5 +20,18 @@ export function titleCase(value: string): string {
 }
 
 export function today(): string {
-  return new Date().toISOString().slice(0, 10);
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+export function billingPeriodEnd(periodStart: string, interval: "daily" | "weekly" | "monthly" | "yearly"): string {
+  const start = new Date(`${periodStart}T00:00:00`);
+  if (interval === "daily") return periodStart;
+  if (interval === "weekly") start.setDate(start.getDate() + 6);
+  if (interval === "monthly") start.setMonth(start.getMonth() + 1, 0);
+  if (interval === "yearly") {
+    start.setFullYear(start.getFullYear() + 1);
+    start.setDate(start.getDate() - 1);
+  }
+  return `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
 }

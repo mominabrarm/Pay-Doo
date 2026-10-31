@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary: #022720;
+  --color-primary-container: #1b3d35;
+  --color-on-primary: #ffffff;
+  --color-on-primary-container: #84a89d;
+  --color-primary-fixed: #c5eadf;
+  --color-primary-fixed-dim: #aacec3;
+  --color-secondary: #95482e;
+  --color-secondary-container: #ff9d7c;
+  --color-on-secondary: #ffffff;
+  --color-on-secondary-container: #783219;
+  --color-surface: #f9f9ff;
+  --color-surface-dim: #d3daef;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f1f3ff;
+  --color-surface-container: #e9edff;
+  --color-surface-container-high: #e1e8fd;
+  --color-surface-container-highest: #dce2f7;
+  --color-on-surface: #141b2b;
+  --color-on-surface-variant: #414846;
+  --color-outline: #717976;
+  --color-outline-variant: #c1c8c4;
+  --color-error: #ba1a1a;
+  --color-error-container: #ffdad6;
+}
+
+@keyframes heroFloat {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.hero-float-1 {
+  animation: heroFloat 5s ease-in-out infinite;
+  animation-delay: 0s;
+}
+
+.hero-float-2 {
+  animation: heroFloat 5.5s ease-in-out infinite;
+  animation-delay: 1s;
+}
+
+.hero-float-3 {
+  animation: heroFloat 4.8s ease-in-out infinite;
+  animation-delay: 2s;
+}
+
+.hero-float-4 {
+  animation: heroFloat 5.2s ease-in-out infinite;
+  animation-delay: 1.5s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-float-1,
+  .hero-float-2,
+  .hero-float-3,
+  .hero-float-4 {
+    animation: none !important;
+  }
+}

@@ -45,3 +45,12 @@ export function MetricCard({ label, value, hint }: { label: string; value: React
 export function FormLabel({ label, children }: { label: string; children: ReactNode }) {
   return <label className="field"><span>{label}</span>{children}</label>;
 }
+
+export function PaginationControls({ page, hasNext, onPageChange }: { page: number; hasNext: boolean; onPageChange: (page: number) => void }) {
+  if (page === 0 && !hasNext) return null;
+  return <div className="pagination-controls" aria-label="Collection pages">
+    <button className="button secondary" type="button" disabled={page === 0} onClick={() => onPageChange(page - 1)}>Previous</button>
+    <span>Page {page + 1}</span>
+    <button className="button secondary" type="button" disabled={!hasNext} onClick={() => onPageChange(page + 1)}>Next</button>
+  </div>;
+}
