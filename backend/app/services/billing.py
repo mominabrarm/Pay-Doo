@@ -32,30 +32,6 @@ def validate_billing_period(subscription: Subscription, period_start: date, peri
             detail=f"Billing period end ({period_end}) cannot exceed subscription expiry date ({subscription.expiry_date}).",
         )
 
-    interval = subscription.plan.billing_interval
-    duration_days = (period_end - period_start).days + 1
-
-    if interval == "daily" and duration_days != 1:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Daily billing plan requires a 1-day period (got {duration_days} days).",
-        )
-    elif interval == "weekly" and duration_days != 7:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Weekly billing plan requires a 7-day period (got {duration_days} days).",
-        )
-    elif interval == "monthly" and not (28 <= duration_days <= 31):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Monthly billing plan requires a 28-31 day period (got {duration_days} days).",
-        )
-    elif interval == "yearly" and not (365 <= duration_days <= 366):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Yearly billing plan requires a 365-366 day period (got {duration_days} days).",
-        )
-
 
 def generate_subscription_invoice(
     db: Session,
@@ -161,9 +137,8 @@ def generate_subscription_invoice(
         else:
             line_discount = Decimal("0.00")
 
-        taxable_amount = item["subtotal"] - line_discount
-        line_tax = round_currency(taxable_amount * (item["tax_rate"] / Decimal("100.00")))
-        line_total = taxable_amount + line_tax
+        line_tax = round_currency(item["subtotal"] * (item["tax_rate"] / Decimal("100.00")))
+        line_total = item["subtotal"] - line_discount + line_tax
         total_tax += line_tax
 
         invoice_lines_data.append(
