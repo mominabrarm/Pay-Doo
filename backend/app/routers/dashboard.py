@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
+from app.models.customer import Customer
 from app.schemas.dashboard import DashboardSummaryResponse, CustomerDashboardResponse
 from app.services.dashboard import get_dashboard_summary, get_customer_dashboard_summary
 from app.services.auth import get_current_user, security_bearer, decode_access_token

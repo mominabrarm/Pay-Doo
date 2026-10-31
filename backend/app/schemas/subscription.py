@@ -39,6 +39,15 @@ class SubscriptionCreate(BaseModel):
     lines: List[SubscriptionLineCreate]
 
 
+class CustomerSubscribeRequest(BaseModel):
+    product_id: int
+    plan_id: int
+    variant_id: Optional[int] = None
+    quantity: int = Field(default=1, ge=1)
+    start_date: Optional[date] = None
+    payment_terms: str = "Immediate"
+
+
 class SubscriptionStatusUpdate(BaseModel):
     status: SubscriptionStatus
 

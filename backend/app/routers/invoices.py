@@ -5,7 +5,9 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
 from sqlalchemy.orm import Session
 from app.database import get_db
+from app.models.customer import Customer
 from app.models.invoice import Invoice
+from app.models.payment import Payment
 from app.models.subscription import Subscription
 from app.models.user import User
 from app.schemas.invoice import InvoiceResponse
@@ -60,7 +62,10 @@ def list_invoices(
                 current_user.customer_id = cust.id
                 db.commit()
                 db.refresh(current_user)
-        query = query.filter(Invoice.customer_id == current_user.customer_id)
+        if current_user.customer_id:
+            query = query.filter(Invoice.customer_id == current_user.customer_id)
+        else:
+            return []
     elif customer_id:
         query = query.filter(Invoice.customer_id == customer_id)
 
@@ -77,6 +82,46 @@ def list_invoices(
         )
 
     return query.order_by(Invoice.id.desc()).offset(skip).limit(limit).all()
+
+
+@router.get("/payments/history", response_model=List[PaymentResponse])
+def get_payment_history(
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    query = db.query(Payment).join(Invoice, Payment.invoice_id == Invoice.id)
+    if current_user and current_user.role == "customer":
+        if not current_user.customer_id:
+            cust = db.query(Customer).filter(Customer.email == current_user.email).first()
+            if cust:
+                current_user.customer_id = cust.id
+                db.commit()
+                db.refresh(current_user)
+        if current_user.customer_id:
+            query = query.filter(Invoice.customer_id == current_user.customer_id)
+        else:
+            return []
+
+    payments = query.order_by(Payment.id.desc()).limit(100).all()
+    results = []
+    for pay in payments:
+        inv = pay.invoice
+        results.append(
+            PaymentResponse(
+                payment_id=pay.id,
+                payment_number=pay.payment_number,
+                invoice_id=pay.invoice_id,
+                amount=pay.amount,
+                payment_method=pay.payment_method,
+                payment_date=pay.payment_date,
+                notes=pay.notes,
+                status=pay.status,
+                invoice_status=inv.status if inv else "confirmed",
+                invoice_amount_paid=inv.amount_paid if inv else pay.amount,
+                invoice_outstanding_balance=inv.outstanding_balance if inv else Decimal("0.00"),
+            )
+        )
+    return results
 
 
 @router.get("/{invoice_id}", response_model=InvoiceResponse)

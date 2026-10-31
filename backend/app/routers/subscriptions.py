@@ -1,4 +1,5 @@
 import uuid
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -6,17 +7,19 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.customer import Customer
 from app.models.plan import SubscriptionPlan
-from app.models.product import Product
+from app.models.product import Product, ProductVariant
 from app.models.subscription import Subscription, SubscriptionLine
 from app.models.user import User
 from app.schemas.subscription import (
     SubscriptionCreate,
+    CustomerSubscribeRequest,
     SubscriptionResponse,
     SubscriptionStatusUpdate,
 )
 from app.schemas.invoice import InvoiceGenerateRequest, InvoiceResponse
 from app.services.billing import generate_subscription_invoice, round_currency
-from app.services.auth import get_optional_current_user
+from app.services.auth import get_optional_current_user, get_current_user
+from app.routers.invoices import add_months, add_years
 
 router = APIRouter(prefix="/subscriptions", tags=["Subscriptions"])
 
@@ -97,6 +100,114 @@ def create_subscription(
     return subscription
 
 
+@router.post("/subscribe", response_model=SubscriptionResponse, status_code=status.HTTP_201_CREATED)
+def customer_subscribe(
+    payload: CustomerSubscribeRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # Auto-link customer if missing
+    if not current_user.customer_id:
+        cust = db.query(Customer).filter(Customer.email == current_user.email).first()
+        if not cust:
+            cust = Customer(
+                name=current_user.full_name or current_user.email.split("@")[0].title(),
+                email=current_user.email,
+                is_active=True,
+            )
+            db.add(cust)
+            db.flush()
+        current_user.customer_id = cust.id
+        db.commit()
+        db.refresh(current_user)
+
+    customer = db.query(Customer).filter(Customer.id == current_user.customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer record not found.")
+
+    product = db.query(Product).filter(Product.id == payload.product_id, Product.is_active == True).first()
+    if not product:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found or inactive.")
+
+    plan = db.query(SubscriptionPlan).filter(SubscriptionPlan.id == payload.plan_id, SubscriptionPlan.is_active == True).first()
+    if not plan:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription plan not found or inactive.")
+
+    variant = None
+    price_extra = Decimal("0.00")
+    if payload.variant_id:
+        variant = db.query(ProductVariant).filter(
+            ProductVariant.id == payload.variant_id,
+            ProductVariant.product_id == product.id,
+        ).first()
+        if not variant:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product variant not found.")
+        price_extra = Decimal(str(variant.price_extra))
+
+    # Authoritative unit price from catalog (sales_price + variant price_extra)
+    unit_price = Decimal(str(product.sales_price)) + price_extra
+    tax_rate = Decimal("18.00")
+
+    sub_start = payload.start_date or date.today()
+    unique_suffix = uuid.uuid4().hex[:6].upper()
+    sub_number = f"SUB-{sub_start.year}-{unique_suffix}"
+
+    subscription = Subscription(
+        subscription_number=sub_number,
+        customer_id=customer.id,
+        plan_id=plan.id,
+        status="active",
+        start_date=sub_start,
+        next_billing_date=sub_start,
+        payment_terms=payload.payment_terms,
+    )
+    db.add(subscription)
+    db.flush()
+
+    line_subtotal = round_currency(unit_price * Decimal(str(payload.quantity)))
+    tax_amount = round_currency(line_subtotal * (tax_rate / Decimal("100.00")))
+    line_total = line_subtotal + tax_amount
+
+    sub_line = SubscriptionLine(
+        subscription_id=subscription.id,
+        product_id=product.id,
+        variant_id=variant.id if variant else None,
+        quantity=payload.quantity,
+        unit_price=unit_price,
+        tax_rate=tax_rate,
+        amount=line_total,
+    )
+    db.add(sub_line)
+    db.flush()
+
+    # Automatically generate initial invoice for the subscription's first billing cycle
+    try:
+        if plan.billing_interval == "daily":
+            period_end = sub_start
+        elif plan.billing_interval == "weekly":
+            period_end = sub_start + timedelta(days=6)
+        elif plan.billing_interval == "monthly":
+            period_end = add_months(sub_start, 1) - timedelta(days=1)
+        elif plan.billing_interval == "yearly":
+            period_end = add_years(sub_start, 1) - timedelta(days=1)
+        else:
+            period_end = add_months(sub_start, 1) - timedelta(days=1)
+
+        generate_subscription_invoice(
+            db=db,
+            subscription_id=subscription.id,
+            period_start=sub_start,
+            period_end=period_end,
+            due_date=sub_start + timedelta(days=15),
+        )
+    except Exception:
+        pass
+
+    db.commit()
+    db.refresh(subscription)
+    return subscription
+
+
 @router.get("", response_model=List[SubscriptionResponse])
 def list_subscriptions(
     customer_id: Optional[int] = None,
@@ -110,7 +221,16 @@ def list_subscriptions(
 
     # Scoped to authenticated customer
     if current_user and current_user.role == "customer":
-        query = query.filter(Subscription.customer_id == current_user.customer_id)
+        if not current_user.customer_id:
+            cust = db.query(Customer).filter(Customer.email == current_user.email).first()
+            if cust:
+                current_user.customer_id = cust.id
+                db.commit()
+                db.refresh(current_user)
+        if current_user.customer_id:
+            query = query.filter(Subscription.customer_id == current_user.customer_id)
+        else:
+            return []
     elif customer_id:
         query = query.filter(Subscription.customer_id == customer_id)
 

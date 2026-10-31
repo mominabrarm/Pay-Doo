@@ -9,6 +9,7 @@ from app.schemas.auth import (
     UserLoginRequest,
     UserResponse,
     TokenResponse,
+    ProfileUpdateRequest,
 )
 from app.services.auth import (
     validate_password_complexity,
@@ -164,3 +165,31 @@ def get_current_account(
 @router.post("/logout")
 def logout(current_user: User = Depends(get_current_user)):
     return {"status": "logged_out", "message": "Successfully logged out."}
+
+
+@router.put("/profile", response_model=UserResponse)
+def update_profile(
+    payload: ProfileUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if payload.full_name is not None and payload.full_name.strip():
+        current_user.full_name = payload.full_name.strip()
+
+    if current_user.customer_id:
+        customer = db.query(Customer).filter(Customer.id == current_user.customer_id).first()
+        if customer:
+            if payload.full_name is not None and payload.full_name.strip():
+                customer.name = payload.full_name.strip()
+            if payload.phone is not None:
+                customer.phone = payload.phone.strip()
+            if payload.address is not None:
+                customer.address = payload.address.strip()
+            if payload.city is not None:
+                customer.city = payload.city.strip()
+            if payload.country is not None:
+                customer.country = payload.country.strip()
+
+    db.commit()
+    db.refresh(current_user)
+    return current_user
