@@ -4,20 +4,20 @@ export const appConfig = {
   roles: {
     admin: {
       name: "Administrator",
-      defaultRoute: "/app",
+      defaultRoute: "/dashboard",
     },
-    billing_manager: {
-      name: "Billing Manager",
-      defaultRoute: "/app/invoices",
+    staff: {
+      name: "Staff Member",
+      defaultRoute: "/dashboard",
     },
-    finance_ops: {
-      name: "Finance Ops",
-      defaultRoute: "/app/subscriptions",
+    customer: {
+      name: "Customer Portal",
+      defaultRoute: "/dashboard",
     },
   },
-  defaultRole: "admin",
+  defaultRole: "customer",
 };
 
-export function getDefaultRouteForRole(role = "admin") {
-  return appConfig.roles[role]?.defaultRoute || "/app";
+export function getDefaultRouteForRole(role = "customer") {
+  return appConfig.roles[role]?.defaultRoute || "/dashboard";
 }
