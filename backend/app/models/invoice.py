@@ -31,6 +31,7 @@ class Invoice(Base, TimestampMixin):
     customer = relationship("Customer", back_populates="invoices")
     lines = relationship("InvoiceLine", back_populates="invoice", cascade="all, delete-orphan")
     payments = relationship("Payment", back_populates="invoice", cascade="all, delete-orphan")
+    notifications = relationship("NotificationLog", back_populates="invoice", cascade="all, delete-orphan")
 
 
 class InvoiceLine(Base, TimestampMixin):

@@ -17,6 +17,12 @@ export function AccountSettingsPage() {
   const [city, setCity] = useState("");
   const [country, setCountry] = useState("India");
 
+  const [notifyEmail, setNotifyEmail] = useState(true);
+  const [notifyWhatsapp, setNotifyWhatsapp] = useState(true);
+  const [whatsappNumber, setWhatsappNumber] = useState("");
+  const [savingPrefs, setSavingPrefs] = useState(false);
+  const [prefMessage, setPrefMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+
   useEffect(() => {
     setLoading(true);
     api.getMe()
@@ -26,7 +32,38 @@ export function AccountSettingsPage() {
       })
       .catch((err) => setMessage({ kind: "error", text: errorMessage(err) }))
       .finally(() => setLoading(false));
+
+    api.getNotificationPreferences()
+      .then((prefs) => {
+        setNotifyEmail(prefs.notify_email);
+        setNotifyWhatsapp(prefs.notify_whatsapp);
+        setWhatsappNumber(prefs.whatsapp_number || "");
+      })
+      .catch(() => {
+        // Fallback default
+      });
   }, []);
+
+  const handleSavePreferences = async (e: FormEvent) => {
+    e.preventDefault();
+    setSavingPrefs(true);
+    setPrefMessage(null);
+    try {
+      const updated = await api.updateNotificationPreferences({
+        notify_email: notifyEmail,
+        notify_whatsapp: notifyWhatsapp,
+        whatsapp_number: whatsappNumber.trim() || undefined,
+      });
+      setNotifyEmail(updated.notify_email);
+      setNotifyWhatsapp(updated.notify_whatsapp);
+      setWhatsappNumber(updated.whatsapp_number || "");
+      setPrefMessage({ kind: "success", text: "Notification preferences saved successfully." });
+    } catch (err) {
+      setPrefMessage({ kind: "error", text: errorMessage(err) });
+    } finally {
+      setSavingPrefs(false);
+    }
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -166,6 +203,73 @@ export function AccountSettingsPage() {
               <div className="form-actions">
                 <button type="submit" className="button" disabled={saving}>
                   {saving ? "Saving Changes…" : "Save Profile Details"}
+                </button>
+              </div>
+            </form>
+          </Panel>
+
+          <Panel>
+            <div className="panel-heading">
+              <div>
+                <h2>Notification Preferences</h2>
+                <p>Configure automated email and WhatsApp alerts for new invoices and payment confirmations.</p>
+              </div>
+            </div>
+
+            {prefMessage && <Flash kind={prefMessage.kind}>{prefMessage.text}</Flash>}
+
+            <form onSubmit={handleSavePreferences} className="form-grid">
+              <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: "12px", background: "#f8fafc", padding: "16px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "14px", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={notifyEmail}
+                    onChange={(e) => setNotifyEmail(e.target.checked)}
+                    disabled={savingPrefs}
+                    style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                  />
+                  <span>
+                    <strong>Email Invoices & Receipts (Resend)</strong>
+                    <span style={{ display: "block", fontSize: "12px", color: "#64748b" }}>
+                      Receive official PDF invoices as email attachments and payment receipts instantly.
+                    </span>
+                  </span>
+                </label>
+
+                <hr style={{ border: "0", borderTop: "1px solid #e2e8f0", margin: "4px 0" }} />
+
+                <label style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "14px", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={notifyWhatsapp}
+                    onChange={(e) => setNotifyWhatsapp(e.target.checked)}
+                    disabled={savingPrefs}
+                    style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                  />
+                  <span>
+                    <strong>WhatsApp Billing Alerts (Twilio)</strong>
+                    <span style={{ display: "block", fontSize: "12px", color: "#64748b" }}>
+                      Receive instant WhatsApp notifications with secure, time-limited 72-hour PDF download links.
+                    </span>
+                  </span>
+                </label>
+              </div>
+
+              <div className="field" style={{ gridColumn: "1 / -1" }}>
+                <span>Dedicated WhatsApp Mobile Number (E.164)</span>
+                <input
+                  type="tel"
+                  placeholder="+91-9876543210"
+                  value={whatsappNumber}
+                  onChange={(e) => setWhatsappNumber(e.target.value)}
+                  disabled={savingPrefs}
+                />
+                <span className="field-note">Defaults to your contact phone number if left empty.</span>
+              </div>
+
+              <div className="form-actions" style={{ gridColumn: "1 / -1" }}>
+                <button type="submit" className="button" disabled={savingPrefs}>
+                  {savingPrefs ? "Updating Preferences…" : "Save Notification Preferences"}
                 </button>
               </div>
             </form>

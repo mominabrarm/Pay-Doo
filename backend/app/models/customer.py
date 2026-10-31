@@ -15,7 +15,11 @@ class Customer(Base, TimestampMixin):
     city = Column(String(100), nullable=True)
     country = Column(String(100), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
+    notify_email = Column(Boolean, default=True, nullable=False)
+    notify_whatsapp = Column(Boolean, default=True, nullable=False)
+    whatsapp_number = Column(String(50), nullable=True)
 
     subscriptions = relationship("Subscription", back_populates="customer", cascade="all, delete-orphan")
     invoices = relationship("Invoice", back_populates="customer", cascade="all, delete-orphan")
+    notifications = relationship("NotificationLog", back_populates="customer", cascade="all, delete-orphan")
 

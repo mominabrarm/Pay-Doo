@@ -2,7 +2,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
 import { api } from "../api/paydoo";
 import { getStoredUser } from "../api/client";
-import type { AuthUser, Invoice, Subscription } from "../api/types";
+import type { AuthUser, Invoice, NotificationLog, Subscription } from "../api/types";
 import {
   EmptyState,
   ErrorState,
@@ -330,6 +330,48 @@ function InvoiceDetail({
   isCustomer?: boolean;
   onExplain?: (invoiceId: number) => void;
 }) {
+  const [notifications, setNotifications] = useState<NotificationLog[]>([]);
+  const [loadingNotifs, setLoadingNotifs] = useState(false);
+  const [sendingChannel, setSendingChannel] = useState<string | null>(null);
+  const [notifMessage, setNotifMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!invoice?.id) {
+      setNotifications([]);
+      setNotifMessage(null);
+      return;
+    }
+    setLoadingNotifs(true);
+    setNotifMessage(null);
+    api.listNotifications({ invoice_id: invoice.id })
+      .then(setNotifications)
+      .catch(() => setNotifications([]))
+      .finally(() => setLoadingNotifs(false));
+  }, [invoice?.id]);
+
+  async function handleSendNotification(channel: "email" | "whatsapp" | "all") {
+    if (!invoice) return;
+    setSendingChannel(channel);
+    setNotifMessage(null);
+    try {
+      const logs = await api.sendInvoiceNotification(invoice.id, { channel, force_resend: true });
+      setNotifications((prev) => [...logs, ...prev]);
+      const successful = logs.filter((l) => l.status === "sent" || l.status === "delivered");
+      const skipped = logs.filter((l) => l.status.startsWith("skipped"));
+      if (successful.length > 0) {
+        setNotifMessage(`Dispatched via ${successful.map((s) => s.channel).join(" & ")}.`);
+      } else if (skipped.length > 0) {
+        setNotifMessage(`Notification logged (${skipped[0].status.replace(/_/g, " ")}: ${skipped[0].error_message || "no credentials configured"}).`);
+      } else {
+        setNotifMessage("Notification dispatch completed.");
+      }
+    } catch (cause) {
+      setNotifMessage(`Failed: ${errorMessage(cause)}`);
+    } finally {
+      setSendingChannel(null);
+    }
+  }
+
   return (
     <Panel className="invoice-detail">
       <div className="panel-heading">
@@ -392,6 +434,66 @@ function InvoiceDetail({
               </div>
             ))}
           </div>
+
+          {/* Delivery & Notifications Section */}
+          <div style={{ marginTop: "16px", padding: "12px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+              <strong style={{ fontSize: "12px", color: "#0f172a" }}>Delivery & Notifications</strong>
+              <div style={{ display: "flex", gap: "6px" }}>
+                <button
+                  type="button"
+                  className="button secondary"
+                  style={{ fontSize: "11px", padding: "3px 8px" }}
+                  disabled={sendingChannel !== null}
+                  onClick={() => void handleSendNotification("email")}
+                >
+                  {sendingChannel === "email" ? "Sending…" : "📧 Resend Email"}
+                </button>
+                <button
+                  type="button"
+                  className="button secondary"
+                  style={{ fontSize: "11px", padding: "3px 8px" }}
+                  disabled={sendingChannel !== null}
+                  onClick={() => void handleSendNotification("whatsapp")}
+                >
+                  {sendingChannel === "whatsapp" ? "Sending…" : "💬 Resend WhatsApp"}
+                </button>
+              </div>
+            </div>
+
+            {notifMessage && (
+              <div style={{ fontSize: "11px", padding: "6px 8px", background: "#eff6ff", color: "#1d4ed8", borderRadius: "4px", marginBottom: "8px" }}>
+                {notifMessage}
+              </div>
+            )}
+
+            {notifications.length === 0 ? (
+              <span style={{ fontSize: "11px", color: "#94a3b8" }}>
+                {loadingNotifs ? "Checking notification history…" : "No notification dispatches recorded yet for this invoice."}
+              </span>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                {notifications.slice(0, 3).map((log) => (
+                  <div key={log.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "11px", padding: "4px 8px", background: "#ffffff", borderRadius: "4px", border: "1px solid #e2e8f0" }}>
+                    <span>
+                      <strong>{log.channel === "email" ? "📧 Email" : "💬 WhatsApp"}</strong> · {log.recipient}
+                    </span>
+                    <span style={{
+                      fontSize: "10px",
+                      padding: "1px 6px",
+                      borderRadius: "9999px",
+                      fontWeight: 600,
+                      background: log.status === "sent" || log.status === "delivered" ? "#dcfce7" : log.status.startsWith("skipped") ? "#fef3c7" : "#fee2e2",
+                      color: log.status === "sent" || log.status === "delivered" ? "#15803d" : log.status.startsWith("skipped") ? "#b45309" : "#b91c1c",
+                    }}>
+                      {log.status.toUpperCase()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div style={{ display: "flex", gap: "10px", marginTop: "16px", flexWrap: "wrap" }}>
             <button
               className="button"
