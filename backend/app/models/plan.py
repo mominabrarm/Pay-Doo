@@ -21,3 +21,4 @@ class SubscriptionPlan(Base, TimestampMixin):
     is_active = Column(Boolean, default=True, nullable=False)
 
     subscriptions = relationship("Subscription", back_populates="plan")
+

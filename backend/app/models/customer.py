@@ -18,3 +18,4 @@ class Customer(Base, TimestampMixin):
 
     subscriptions = relationship("Subscription", back_populates="customer", cascade="all, delete-orphan")
     invoices = relationship("Invoice", back_populates="customer", cascade="all, delete-orphan")
+

@@ -10,3 +10,4 @@ def health_check():
         "status": "healthy",
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+

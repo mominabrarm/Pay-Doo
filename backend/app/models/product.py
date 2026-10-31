@@ -30,3 +30,4 @@ class ProductVariant(Base, TimestampMixin):
     is_active = Column(Boolean, default=True, nullable=False)
 
     product = relationship("Product", back_populates="variants")
+

@@ -11,3 +11,4 @@ class DashboardSummaryResponse(BaseModel):
     overdue_invoices_amount: Decimal
     subscriptions_by_interval: Dict[str, int]
     recent_activity: List[Dict[str, Any]]
+

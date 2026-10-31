@@ -135,3 +135,4 @@ def generate_invoice(
         period_end=payload.billing_period_end,
         due_date=payload.due_date,
     )
+

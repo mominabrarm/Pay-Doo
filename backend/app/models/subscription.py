@@ -40,3 +40,4 @@ class SubscriptionLine(Base, TimestampMixin):
     subscription = relationship("Subscription", back_populates="lines")
     product = relationship("Product")
     variant = relationship("ProductVariant")
+

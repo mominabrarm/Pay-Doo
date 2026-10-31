@@ -51,3 +51,4 @@ class InvoiceLine(Base, TimestampMixin):
     invoice = relationship("Invoice", back_populates="lines")
     product = relationship("Product")
     variant = relationship("ProductVariant")
+

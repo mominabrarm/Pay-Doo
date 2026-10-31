@@ -35,3 +35,4 @@ def get_plan(plan_id: int, db: Session = Depends(get_db)):
     if not plan:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found.")
     return plan
+

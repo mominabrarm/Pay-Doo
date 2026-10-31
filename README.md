@@ -241,3 +241,4 @@ pytest -v
 
 ## 5. API Contract Reference
 For endpoint specifications, request/response payloads, and error schemas, see [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md).
+

@@ -45,3 +45,4 @@ class ProductResponse(ProductBase):
     variants: List[ProductVariantResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
+

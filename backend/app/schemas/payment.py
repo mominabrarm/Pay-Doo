@@ -27,3 +27,4 @@ class PaymentResponse(BaseModel):
     invoice_outstanding_balance: Decimal
 
     model_config = ConfigDict(from_attributes=True)
+

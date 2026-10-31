@@ -43,3 +43,4 @@ def get_customer(customer_id: int, db: Session = Depends(get_db)):
     if not customer:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found.")
     return customer
+

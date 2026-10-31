@@ -60,3 +60,4 @@ class SubscriptionResponse(BaseModel):
     lines: List[SubscriptionLineResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
+

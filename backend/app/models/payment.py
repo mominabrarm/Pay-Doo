@@ -17,3 +17,4 @@ class Payment(Base, TimestampMixin):
     status = Column(String(30), default="success", nullable=False)
 
     invoice = relationship("Invoice", back_populates="payments")
+

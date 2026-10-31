@@ -74,3 +74,4 @@ def add_payment(
         invoice_amount_paid=payment.invoice.amount_paid,
         invoice_outstanding_balance=payment.invoice.outstanding_balance,
     )
+

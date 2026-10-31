@@ -161,3 +161,4 @@ def generate_subscription_invoice(
     db.commit()
     db.refresh(invoice)
     return invoice
+

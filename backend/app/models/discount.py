@@ -23,3 +23,4 @@ class DiscountRule(Base, TimestampMixin):
     is_active = Column(Boolean, default=True, nullable=False)
 
     product = relationship("Product")
+

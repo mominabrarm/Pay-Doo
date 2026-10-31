@@ -72,3 +72,4 @@ def record_invoice_payment(
     db.refresh(payment)
     db.refresh(invoice)
     return payment
+

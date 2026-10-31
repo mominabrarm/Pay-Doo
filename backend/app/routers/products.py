@@ -60,3 +60,4 @@ def create_variant(product_id: int, payload: ProductVariantCreate, db: Session =
     db.commit()
     db.refresh(variant)
     return variant
+

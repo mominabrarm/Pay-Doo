@@ -81,3 +81,4 @@ def get_dashboard_summary(db: Session) -> DashboardSummaryResponse:
         subscriptions_by_interval=subscriptions_by_interval,
         recent_activity=recent_activity,
     )
+

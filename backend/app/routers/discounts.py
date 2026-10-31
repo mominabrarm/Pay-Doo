@@ -35,3 +35,4 @@ def get_discount(discount_id: int, db: Session = Depends(get_db)):
     if not discount:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Discount rule not found.")
     return discount
+
