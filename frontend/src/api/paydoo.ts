@@ -1,5 +1,6 @@
 import { request } from "./client";
 import type {
+  AuthUser,
   Customer,
   CustomerInput,
   DashboardSummary,
@@ -14,12 +15,22 @@ import type {
   ProductVariant,
   Subscription,
   SubscriptionInput,
+  TokenResponse,
   VariantInput,
 } from "./types";
 
 const body = (value: unknown) => ({ method: "POST", body: JSON.stringify(value) });
 
 export const api = {
+  // Auth
+  login: (credentials: { email: string; password: string }) =>
+    request<TokenResponse>("/auth/login", body(credentials)),
+  register: (payload: { email: string; password: string; full_name?: string }) =>
+    request<AuthUser>("/auth/register", body(payload)),
+  getMe: () => request<AuthUser>("/auth/me"),
+  logout: () => request<{ message: string }>("/auth/logout", { method: "POST" }),
+
+  // Core entities
   getDashboard: () => request<DashboardSummary>("/dashboard/summary"),
   listCustomers: (search?: string) => request<Customer[]>(`/customers?limit=50${search ? `&search=${encodeURIComponent(search)}` : ""}`),
   createCustomer: (input: CustomerInput) => request<Customer>("/customers", body(input)),
@@ -34,5 +45,6 @@ export const api = {
   generateInvoice: (subscriptionId: number, input: InvoiceGenerationInput) => request<Invoice>(`/subscriptions/${subscriptionId}/generate-invoice`, body(input)),
   listInvoices: () => request<Invoice[]>("/invoices?limit=50"),
   getInvoice: (invoiceId: number) => request<Invoice>(`/invoices/${invoiceId}`),
+  getInvoicePdfUrl: (invoiceId: number) => `/api/invoices/${invoiceId}/pdf`,
   recordPayment: (invoiceId: number, input: PaymentInput) => request<Payment>(`/invoices/${invoiceId}/payments`, body(input)),
 };

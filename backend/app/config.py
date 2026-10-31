@@ -17,6 +17,9 @@ class Settings(BaseSettings):
         "http://127.0.0.1:4173",
         "http://127.0.0.1:3000",
     ]
+    JWT_SECRET_KEY: str = "brightloop-secret-key-odoo-hackathon-2026-production"
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

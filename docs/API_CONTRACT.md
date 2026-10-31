@@ -29,6 +29,61 @@ Monetary values are serialized as `Decimal` strings or two-decimal numbers (e.g.
 
 ## 2. Endpoints
 
+### 2.0 Authentication & Authorization
+- **Password Policy:** Backend strictly enforces: `> 8 characters, at least 1 uppercase letter, at least 1 lowercase letter, at least 1 special character`.
+- **Role Permissions:**
+  - `admin`: Full system management, user and staff provisioning, all financial resources.
+  - `staff`: Operational operations (subscriptions, invoices, payments, customers).
+  - `customer`: Isolated read/action access strictly limited to their own linked `customer_id`.
+
+- **`POST /api/auth/register`**
+  - **Request Body:**
+    ```json
+    {
+      "email": "customer@acme.com",
+      "password": "SecurePassword@2026",
+      "full_name": "Jane Doe",
+      "role": "customer",
+      "customer_id": 1
+    }
+    ```
+  - **Response `201 Created`:** User profile without password hash.
+  - **Errors:** `400 Bad Request` (duplicate email, weak password), `401/403` (unauthorized role creation).
+
+- **`POST /api/auth/login`**
+  - **Request Body:**
+    ```json
+    {
+      "email": "customer@acme.com",
+      "password": "SecurePassword@2026"
+    }
+    ```
+  - **Response `200 OK`:**
+    ```json
+    {
+      "access_token": "eyJhbGciOiJIUzI1NiIsIn...",
+      "token_type": "bearer",
+      "user": {
+        "id": 1,
+        "email": "customer@acme.com",
+        "full_name": "Jane Doe",
+        "role": "customer",
+        "is_active": true,
+        "customer_id": 1,
+        "created_at": "2026-10-31T10:00:00Z"
+      }
+    }
+    ```
+
+- **`GET /api/auth/me`**
+  - **Headers:** `Authorization: Bearer <token>`
+  - **Response `200 OK`:** Authenticated user profile.
+
+- **`POST /api/auth/logout`**
+  - **Response `200 OK`:** Confirmation message.
+
+---
+
 ### 2.1 Health Check
 - **`GET /api/health`**
 - **Response `200 OK`:**
@@ -246,6 +301,11 @@ Monetary values are serialized as `Decimal` strings or two-decimal numbers (e.g.
 - **`GET /api/invoices`**
   - **Query Params:** `customer_id`, `status`, `is_overdue`
   - **Response `200 OK`:** List of invoices.
+
+- **`GET /api/invoices/{id}/pdf`**
+  - **Headers:** Optional `Authorization: Bearer <token>` (enforces customer data isolation).
+  - **Response `200 OK`:** Binary PDF file (`application/pdf`) with `Content-Disposition: inline; filename="invoice_<number>.pdf"`. Includes formal header, customer billing address, itemized charges table, tax calculation, balance summary, and payment history receipt.
+  - **Errors:** `404 Not Found` (non-existent invoice), `403 Forbidden` (customer attempting to download another customer's invoice).
 
 ---
 

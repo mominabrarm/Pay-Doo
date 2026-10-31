@@ -1,5 +1,43 @@
-const rawBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api";
+const rawBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "/api";
 const apiBaseUrl = rawBaseUrl.replace(/\/$/, "");
+
+const TOKEN_KEY = "paydoo_auth_token";
+const USER_KEY = "paydoo_auth_user";
+
+export function getAuthToken(): string | null {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function getStoredUser<T = any>(): T | null {
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setAuthSession(token: string, user: any) {
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  } catch {
+    // Ignore storage errors in private browsing
+  }
+}
+
+export function clearAuthSession() {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+  } catch {
+    // Ignore
+  }
+}
 
 export class ApiError extends Error {
   constructor(
@@ -22,7 +60,14 @@ function readErrorMessage(payload: unknown): string {
 
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
-  if (options.body !== undefined) headers.set("Content-Type", "application/json");
+  if (options.body !== undefined && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  const token = getAuthToken();
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
 
   let response: Response;
   try {

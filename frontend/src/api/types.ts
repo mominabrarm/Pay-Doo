@@ -213,3 +213,21 @@ export interface PaymentInput {
   payment_date: string;
   notes?: string;
 }
+
+export type UserRole = "admin" | "staff" | "customer";
+
+export interface AuthUser {
+  id: number;
+  email: string;
+  full_name: string | null;
+  role: UserRole;
+  is_active: boolean;
+  customer_id: number | null;
+  created_at: string;
+}
+
+export interface TokenResponse {
+  access_token: string;
+  token_type: string;
+  user: AuthUser;
+}

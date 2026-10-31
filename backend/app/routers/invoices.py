@@ -1,15 +1,18 @@
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.invoice import Invoice
 from app.models.subscription import Subscription
+from app.models.user import User
 from app.schemas.invoice import InvoiceResponse
 from app.schemas.payment import PaymentCreate, PaymentResponse
 from app.services.billing import generate_subscription_invoice
 from app.services.payment import record_invoice_payment
+from app.services.pdf import generate_invoice_pdf
+from app.services.auth import get_current_user, security_bearer, decode_access_token
 
 router = APIRouter(prefix="/invoices", tags=["Invoices"])
 
@@ -47,6 +50,54 @@ def get_invoice(invoice_id: int, db: Session = Depends(get_db)):
     if not invoice:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found.")
     return invoice
+
+
+@router.get("/{invoice_id}/pdf")
+def download_invoice_pdf(
+    invoice_id: int,
+    token: Optional[str] = Query(None),
+    auth=Depends(security_bearer),
+    db: Session = Depends(get_db),
+):
+    # Support both Bearer Authorization header and query param token for browser downloads
+    raw_token = None
+    if auth and auth.credentials:
+        raw_token = auth.credentials
+    elif token:
+        raw_token = token
+
+    current_user = None
+    if raw_token:
+        try:
+            payload = decode_access_token(raw_token)
+            user_id = payload.get("sub")
+            if user_id:
+                current_user = db.query(User).filter(User.id == int(user_id)).first()
+        except HTTPException:
+            pass
+
+    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not invoice:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found.")
+
+    if current_user and current_user.role == "customer":
+        if not current_user.customer_id or current_user.customer_id != invoice.customer_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Customers may only download their own invoices.",
+            )
+
+    pdf_buffer = generate_invoice_pdf(invoice)
+    filename = f"Invoice-{invoice.invoice_number}.pdf"
+
+    return Response(
+        content=pdf_buffer.getvalue(),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Type": "application/pdf",
+        },
+    )
 
 
 @router.post("/{invoice_id}/payments", response_model=PaymentResponse, status_code=status.HTTP_201_CREATED)
@@ -112,7 +163,6 @@ def run_automated_billing_cycle(
             p_end = p_start.replace(year=p_start.year + 1) - timedelta(days=1)
             next_date = p_start.replace(year=p_start.year + 1)
         else:  # monthly
-            # Last day of current month
             next_month = p_start.replace(day=28) + timedelta(days=4)
             p_end = next_month.replace(day=1) - timedelta(days=1)
             next_date = next_month.replace(day=1)
